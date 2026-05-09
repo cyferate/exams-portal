@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { motion } from "framer-motion";
-import { ShieldCheck, Plus, UploadCloud, Trash2, FileText } from "lucide-react";
+import { ShieldCheck, Plus, UploadCloud, Trash2, FileText, Eye } from "lucide-react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 
@@ -104,18 +104,30 @@ export default function AdminPortal() {
 
           {/* MANAGE VAULT PANEL */}
           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="bg-white/5 border border-white/10 p-8 rounded-3xl backdrop-blur-md">
-            <h2 className="text-xl font-semibold mb-6 flex items-center gap-2"><FileText className="w-5 h-5 text-gray-400" /> Manage Vault</h2>
+            <h2 className="text-xl font-semibold mb-6 flex items-center gap-2"><FileText className="w-5 h-5 text-gray-400"/> Manage Vault</h2>
             <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
               {resources.length === 0 ? <p className="text-gray-500 text-sm">No resources uploaded yet.</p> : 
                 resources.map((item) => (
                   <div key={item.id} className="flex items-center justify-between p-4 bg-black/40 border border-white/5 rounded-xl hover:bg-white/5 transition-colors">
+                    
                     <div className="overflow-hidden pr-4">
                       <p className="text-sm font-bold text-gray-200 truncate">{item.subject_code} - {item.title}</p>
                       <p className="text-xs text-gray-500">{item.resource_type}</p>
                     </div>
-                    <button onClick={() => handleDelete(item.id)} className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+
+                    <div className="flex items-center gap-4">
+                      
+                      <div className="flex items-center gap-1 text-xs text-blue-400 bg-blue-400/10 px-2 py-1 rounded-md font-bold" title="Total Views">
+                        <Eye className="w-3 h-3"/>
+                        {item.views || 0}
+                      </div>
+                      
+                      
+                      <button onClick={() => handleDelete(item.id)} className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors">
+                        <Trash2 className="w-4 h-4"/>
+                      </button>
+                    </div>
+
                   </div>
                 ))
               }
