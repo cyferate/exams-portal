@@ -1,5 +1,6 @@
 "use client";
 
+import ProtectedRoute from "@/app/components/ProtectedRoute";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { motion } from "framer-motion";
