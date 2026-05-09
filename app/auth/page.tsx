@@ -1,5 +1,6 @@
 "use client";
 
+import toast from "react-hot-toast";
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { motion } from "framer-motion";
@@ -13,7 +14,18 @@ export default function AuthPage() {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (isSignUp) {
+      // 1. THE BOUNCER: Check Roll Number Format
+      const rollNoRegex = /^\d{12}$/; 
+      if (!rollNoRegex.test(rollNo)) {
+        toast.error("Invalid Roll Number. Use GUG Roll Number.");
+        return; // Stop the signup process immediately
+      }
+
+      const loadingToast = toast.loading("Forging your access key...");
+
+      // 2. Proceed with Supabase Signup
       const { data, error } = await supabase.auth.signUp({ 
         email, 
         password,
@@ -21,12 +33,25 @@ export default function AuthPage() {
             data: { full_name: fullName, roll_no: rollNo }
         }
       });
-      if (error) alert(error.message);
-      else alert("Check your email for the confirmation link!");
+      
+      if (error) {
+        toast.error(error.message, { id: loadingToast });
+      } else {
+        toast.success("Welcome to the Vault.", { id: loadingToast });
+        window.location.href = "/dashboard"; 
+      }
+
     } else {
+      // SIGN IN LOGIC
+      const loadingToast = toast.loading("Accessing Vault...");
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) alert(error.message);
-      else window.location.href = "/dashboard"; // We will build this next
+      
+      if (error) {
+        toast.error(error.message, { id: loadingToast });
+      } else {
+        toast.success("Welcome Back.", { id: loadingToast });
+        window.location.href = "/dashboard"; 
+      }
     }
   };
 
