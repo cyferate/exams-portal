@@ -293,7 +293,7 @@ function SubjectCard({ data, bookmarks, toggleBookmark, trackClickAndOpen, userL
   // Framer Motion variant for the cascading effect
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
+    visible: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 300, damping: 24 } }
   };
 
   return (
@@ -375,4 +375,4 @@ function TabButton({ icon, label, count, isActive, onClick }: any) {
       <span className="text-[10px] uppercase tracking-wide">{label}</span>
     </button>
   );
-}
+} 
