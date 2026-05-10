@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { motion } from "framer-motion";
-import { Search, BookOpen, FileText, LogOut, Download, ExternalLink, Star } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { BookOpen, FileText, LogOut, Download, ExternalLink, Star, Heart, UploadCloud, Plus, X } from "lucide-react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import ProtectedRoute from "@/app/components/ProtectedRoute";
@@ -11,80 +11,151 @@ import ProtectedRoute from "@/app/components/ProtectedRoute";
 export default function Dashboard() {
   const [profile, setProfile] = useState<any>(null);
   const [groupedResources, setGroupedResources] = useState<any[]>([]);
-  const [bookmarks, setBookmarks] = useState<string[]>([]); // Array of bookmarked resource IDs
-  const [rawResources, setRawResources] = useState<any[]>([]); // Keep raw data for the pinned section
+  const [bookmarks, setBookmarks] = useState<string[]>([]); 
+  const [userLikes, setUserLikes] = useState<string[]>([]); 
+  const [rawResources, setRawResources] = useState<any[]>([]);
+  
+  // NEW: Smart Upload States (Matching the Admin Panel)
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [uploadMode, setUploadMode] = useState<"existing" | "new">("existing");
+  const [uniqueSubjects, setUniqueSubjects] = useState<any[]>([]);
+  const [selectedSubject, setSelectedSubject] = useState("");
+  const [uploadData, setUploadData] = useState({ name: "", code: "", type: "Notes", title: "", link: "" });
 
   useEffect(() => {
-    async function fetchData() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      // Fetch Profile
-      const { data: profileData } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
-      setProfile(profileData);
-
-      // Fetch Resources
-      const { data: resourceData } = await supabase.from("resources").select("*").order("created_at", { ascending: false });
-      if (resourceData) {
-        setRawResources(resourceData);
-        // Group resources by subject
-        const grouped = resourceData.reduce((acc: any, curr: any) => {
-          const code = curr.subject_code;
-          if (!acc[code]) acc[code] = { subject_name: curr.subject_name, subject_code: curr.subject_code, Notes: [], PYQs: [], Assignments: [] };
-          if (acc[code][curr.resource_type]) acc[code][curr.resource_type].push(curr);
-          return acc;
-        }, {});
-        setGroupedResources(Object.values(grouped));
-      }
-
-      // Fetch User's Bookmarks
-      const { data: bookmarkData } = await supabase.from("bookmarks").select("resource_id").eq("user_id", session.user.id);
-      if (bookmarkData) {
-        setBookmarks(bookmarkData.map(b => b.resource_id));
-      }
-    }
     fetchData();
   }, []);
+
+  async function fetchData() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    // Fetch Profile
+    const { data: profileData } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
+    setProfile(profileData);
+
+    // Fetch Resources
+    const { data: resourceData } = await supabase.from("resources").select("*").order("created_at", { ascending: false });
+    if (resourceData) {
+      setRawResources(resourceData);
+      
+      const approvedAndMine = resourceData.filter(r => r.is_approved || r.submitted_by === session.user.id);
+      
+      // Extract Unique Subjects for the Student Dropdown
+      const subjectsMap = new Map();
+      resourceData.filter(r => r.is_approved).forEach(r => {
+        if (!subjectsMap.has(r.subject_code)) {
+          subjectsMap.set(r.subject_code, { code: r.subject_code, name: r.subject_name });
+        }
+      });
+      const subjectsArray = Array.from(subjectsMap.values());
+      setUniqueSubjects(subjectsArray);
+      if (subjectsArray.length > 0 && !selectedSubject) {
+        setSelectedSubject(JSON.stringify(subjectsArray[0]));
+      }
+
+      // Group for display
+      const grouped = approvedAndMine.reduce((acc: any, curr: any) => {
+        const code = curr.subject_code;
+        if (!acc[code]) acc[code] = { subject_name: curr.subject_name, subject_code: curr.subject_code, Notes: [], PYQs: [], Assignments: [] };
+        if (acc[code][curr.resource_type]) acc[code][curr.resource_type].push(curr);
+        return acc;
+      }, {});
+      setGroupedResources(Object.values(grouped));
+    }
+
+    // Fetch Bookmarks & Likes
+    const { data: bookmarkData } = await supabase.from("bookmarks").select("resource_id").eq("user_id", session.user.id);
+    if (bookmarkData) setBookmarks(bookmarkData.map(b => b.resource_id));
+
+    const { data: likesData } = await supabase.from("likes").select("resource_id").eq("user_id", session.user.id);
+    if (likesData) setUserLikes(likesData.map(l => l.resource_id));
+  }
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     window.location.href = "/";
   };
 
-  // Toggle Bookmark Logic
   const toggleBookmark = async (resourceId: string) => {
     const isBookmarked = bookmarks.includes(resourceId);
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
 
     if (isBookmarked) {
-      setBookmarks(bookmarks.filter(id => id !== resourceId)); // Optimistic UI update
+      setBookmarks(bookmarks.filter(id => id !== resourceId));
       await supabase.from("bookmarks").delete().eq("resource_id", resourceId).eq("user_id", session.user.id);
       toast.success("Removed from Saved Items", { icon: '🗑️' });
     } else {
-      setBookmarks([...bookmarks, resourceId]); // Optimistic UI update
+      setBookmarks([...bookmarks, resourceId]);
       await supabase.from("bookmarks").insert([{ user_id: session.user.id, resource_id: resourceId }]);
       toast.success("Saved for Exam Week!", { icon: '⭐' });
     }
   };
 
-  // Analytics Click Tracking
-  const trackClickAndOpen = async (resourceId: string, url: string) => {
-    window.open(url, "_blank"); // Open link immediately for good UX
-    await supabase.rpc('increment_view_count', { res_id: resourceId }); // Secretly +1 to views in DB
+  const handleLike = async (resourceId: string) => {
+    const isLiked = userLikes.includes(resourceId);
+    if (isLiked) {
+      setUserLikes(userLikes.filter(id => id !== resourceId));
+      setRawResources(rawResources.map(r => r.id === resourceId ? { ...r, likes_count: Math.max(0, (r.likes_count || 0) - 1) } : r));
+    } else {
+      setUserLikes([...userLikes, resourceId]);
+      setRawResources(rawResources.map(r => r.id === resourceId ? { ...r, likes_count: (r.likes_count || 0) + 1 } : r));
+    }
+    await supabase.rpc('toggle_like', { res_id: resourceId });
+    fetchData(); 
   };
 
-  // Filter raw resources to find the pinned ones
+  const trackClickAndOpen = async (resourceId: string, url: string) => {
+    window.open(url, "_blank");
+    await supabase.rpc('increment_view_count', { res_id: resourceId });
+  };
+
+  const handleStudentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const loadingToast = toast.loading("Submitting to Admins...");
+    const { data: { session } } = await supabase.auth.getSession();
+
+    // Determine subject details based on mode
+    let finalCode = uploadData.code;
+    let finalName = uploadData.name;
+    if (uploadMode === "existing") {
+      const parsed = JSON.parse(selectedSubject);
+      finalCode = parsed.code;
+      finalName = parsed.name;
+    }
+
+    const { error } = await supabase.from("resources").insert([{ 
+      subject_name: finalName, 
+      subject_code: finalCode, 
+      resource_type: uploadData.type, 
+      title: uploadData.title, 
+      drive_link: uploadData.link, 
+      is_approved: false, 
+      submitted_by: session?.user.id 
+    }]);
+
+    if (error) {
+      toast.error("Submission failed: " + error.message, { id: loadingToast });
+    } else {
+      toast.success("Submitted! Waiting for Admin approval.", { id: loadingToast, duration: 4000 });
+      setIsUploadModalOpen(false);
+      setUploadData({ name: "", code: "", type: "Notes", title: "", link: "" });
+      fetchData(); 
+    }
+  };
+
   const pinnedResources = rawResources.filter(res => bookmarks.includes(res.id));
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-[#0a0a0a] text-white font-sans">
-        <nav className="border-b border-white/10 bg-black/20 backdrop-blur-lg sticky top-0 z-50">
+      <div className="min-h-screen bg-[#0a0a0a] text-white font-sans relative">
+        <nav className="border-b border-white/10 bg-black/20 backdrop-blur-lg sticky top-0 z-40">
           <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
             <div className="text-xl font-bold tracking-tighter">EXAMS<span className="text-gray-500">.</span></div>
             <div className="flex items-center space-x-6">
               <span className="text-sm text-gray-400 hidden md:block">{profile?.full_name}</span>
+              <Link href="/profile" className="text-sm text-gray-400 hover:text-white transition-colors">Profile</Link>
               {profile?.is_admin && <Link href="/admin" className="px-3 py-1 bg-white/10 text-xs rounded-full border border-white/20 hover:bg-white/20 transition-colors">Admin Panel</Link>}
               <button onClick={handleLogout} className="text-gray-400 hover:text-white transition-colors"><LogOut className="w-5 h-5" /></button>
             </div>
@@ -92,18 +163,22 @@ export default function Dashboard() {
         </nav>
 
         <main className="max-w-7xl mx-auto px-6 py-12">
-          <div className="mb-12">
-            <h1 className="text-3xl md:text-4xl font-bold mb-2">Welcome back, {profile?.full_name?.split(" ")[0]}</h1>
-            <p className="text-gray-400">Your curated Gurugram University materials.</p>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold mb-2">Welcome back, {profile?.full_name?.split(" ")[0]}</h1>
+              <p className="text-gray-400">Your curated Gurugram University materials.</p>
+            </div>
+            <button onClick={() => setIsUploadModalOpen(true)} className="flex items-center gap-2 bg-white text-black px-6 py-3 rounded-xl font-bold hover:bg-gray-200 transition-colors">
+              <UploadCloud className="w-5 h-5" /> Contribute Material
+            </button>
           </div>
 
-          {/* NEW: Saved / Pinned Section */}
           {pinnedResources.length > 0 && (
             <div className="mb-12">
               <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Star className="w-5 h-5 text-yellow-500 fill-yellow-500" /> Saved for Later</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {pinnedResources.map(item => (
-                  <div key={`pinned-${item.id}`} className="bg-white/5 border border-white/10 p-4 rounded-2xl flex items-center justify-between group">
+                  <div key={`pinned-${item.id}`} className="bg-white/5 border border-white/10 p-4 rounded-2xl flex items-center justify-between">
                     <div>
                       <p className="text-xs text-gray-500 font-bold mb-1">{item.subject_code} • {item.resource_type}</p>
                       <p className="text-sm font-medium">{item.title}</p>
@@ -118,23 +193,74 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* All Subjects Grid */}
           <h2 className="text-xl font-bold mb-4 text-gray-300">All Subjects</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {groupedResources.length === 0 ? <p className="text-gray-500">The vault is empty.</p> : 
               groupedResources.map((subjectData, index) => (
-                <SubjectCard key={subjectData.subject_code} data={subjectData} index={index} bookmarks={bookmarks} toggleBookmark={toggleBookmark} trackClickAndOpen={trackClickAndOpen} />
+                <SubjectCard key={subjectData.subject_code} data={subjectData} index={index} bookmarks={bookmarks} toggleBookmark={toggleBookmark} trackClickAndOpen={trackClickAndOpen} userLikes={userLikes} handleLike={handleLike} rawResources={rawResources} />
               ))
             }
           </div>
         </main>
+
+        {/* UPLOAD MODAL WITH SMART DROPDOWN */}
+        <AnimatePresence>
+          {isUploadModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-md bg-[#121212] border border-white/10 rounded-3xl p-6 shadow-2xl">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-bold">Contribute Material</h3>
+                  <button onClick={() => setIsUploadModalOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
+                </div>
+                
+                {/* Upload Mode Toggle */}
+                <div className="flex bg-black/50 rounded-xl p-1 mb-6">
+                  <button onClick={() => setUploadMode("existing")} className={`flex-1 text-sm py-2 rounded-lg transition-colors ${uploadMode === "existing" ? "bg-white/10 font-bold" : "text-gray-500 hover:text-gray-300"}`}>Existing Subject</button>
+                  <button onClick={() => setUploadMode("new")} className={`flex-1 text-sm py-2 rounded-lg transition-colors ${uploadMode === "new" ? "bg-white/10 font-bold" : "text-gray-500 hover:text-gray-300"}`}>New Subject</button>
+                </div>
+
+                <form onSubmit={handleStudentSubmit} className="space-y-4">
+                  
+                  {uploadMode === "existing" ? (
+                    uniqueSubjects.length > 0 ? (
+                      <select value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-white/30 text-gray-300">
+                        {uniqueSubjects.map(sub => (
+                          <option key={sub.code} value={JSON.stringify(sub)}>{sub.code} - {sub.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <p className="text-sm text-yellow-500 p-2 bg-yellow-500/10 rounded-lg">No subjects exist yet. Switch to "New Subject".</p>
+                    )
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4">
+                      <input type="text" placeholder="Subject Name" required value={uploadData.name} onChange={e => setUploadData({...uploadData, name: e.target.value})} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-white/30" />
+                      <input type="text" placeholder="Code (MAT-203)" required value={uploadData.code} onChange={e => setUploadData({...uploadData, code: e.target.value})} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-white/30" />
+                    </div>
+                  )}
+
+                  <select value={uploadData.type} onChange={e => setUploadData({...uploadData, type: e.target.value})} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-white/30 text-gray-300">
+                    <option value="Notes">Notes</option><option value="PYQs">PYQs</option><option value="Assignments">Assignments</option>
+                  </select>
+                  <input type="text" placeholder="Title (e.g., Unit 1 Notes)" required value={uploadData.title} onChange={e => setUploadData({...uploadData, title: e.target.value})} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-white/30" />
+                  <input type="url" placeholder="Google Drive Link" required value={uploadData.link} onChange={e => setUploadData({...uploadData, link: e.target.value})} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-white/30" />
+                  
+                  <button type="submit" disabled={uploadMode === 'existing' && uniqueSubjects.length === 0} className="w-full bg-white text-black font-bold py-4 rounded-xl hover:bg-gray-200 transition-colors flex justify-center gap-2 mt-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <Plus className="w-5 h-5" /> Submit for Approval
+                  </button>
+                  <p className="text-xs text-center text-gray-500 mt-2">Admins will review your submission before it goes live.</p>
+                </form>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
       </div>
     </ProtectedRoute>
   );
 }
 
-// Interactive Subject Card
-function SubjectCard({ data, index, bookmarks, toggleBookmark, trackClickAndOpen }: any) {
+// Interactive Subject Card (Unchanged, included for easy copy-pasting)
+function SubjectCard({ data, index, bookmarks, toggleBookmark, trackClickAndOpen, userLikes, handleLike, rawResources }: any) {
   const [activeTab, setActiveTab] = useState<string | null>(null);
 
   return (
@@ -158,15 +284,28 @@ function SubjectCard({ data, index, bookmarks, toggleBookmark, trackClickAndOpen
             <div className="space-y-3">
               {data[activeTab].map((item: any) => {
                 const isSaved = bookmarks.includes(item.id);
+                const isLiked = userLikes.includes(item.id);
+                const currentItem = rawResources.find((r: any) => r.id === item.id) || item;
+
                 return (
-                  <div key={item.id} className="flex items-center justify-between text-sm text-gray-300 hover:bg-white/5 p-2 rounded-lg transition-colors group">
-                    <button onClick={() => trackClickAndOpen(item.id, item.drive_link)} className="flex-1 text-left flex items-center justify-between pr-4 group-hover:text-white">
-                      <span className="truncate">{item.title}</span>
-                      <ExternalLink className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <div key={item.id} className="flex flex-col gap-2 bg-white/5 p-3 rounded-xl border border-white/5 group relative">
+                    {!item.is_approved && (
+                       <span className="absolute -top-2 -right-2 bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded-full">Pending Approval</span>
+                    )}
+                    
+                    <button onClick={() => trackClickAndOpen(item.id, item.drive_link)} className="text-left flex items-center justify-between group-hover:text-white transition-colors">
+                      <span className="text-sm text-gray-200 font-medium truncate pr-4">{item.title}</span>
+                      <ExternalLink className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400" />
                     </button>
-                    <button onClick={() => toggleBookmark(item.id)} className="p-1 hover:scale-110 transition-transform flex-shrink-0">
-                      <Star className={`w-4 h-4 ${isSaved ? 'text-yellow-500 fill-yellow-500' : 'text-gray-600 hover:text-yellow-500'}`} />
-                    </button>
+                    
+                    <div className="flex items-center justify-between mt-1">
+                       <button onClick={() => handleLike(item.id)} className={`flex items-center gap-1.5 text-xs font-semibold transition-colors ${isLiked ? 'text-pink-500' : 'text-gray-500 hover:text-pink-400'}`}>
+                         <Heart className={`w-4 h-4 ${isLiked ? 'fill-pink-500' : ''}`} /> {currentItem.likes_count || 0}
+                       </button>
+                       <button onClick={() => toggleBookmark(item.id)} className="p-1 hover:scale-110 transition-transform">
+                         <Star className={`w-4 h-4 ${isSaved ? 'text-yellow-500 fill-yellow-500' : 'text-gray-600 hover:text-yellow-500'}`} />
+                       </button>
+                    </div>
                   </div>
                 );
               })}
