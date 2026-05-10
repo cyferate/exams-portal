@@ -1,21 +1,25 @@
 "use client";
 
+import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, FileText, LogOut, Download, ExternalLink, Star, Heart, UploadCloud, Plus, X } from "lucide-react";
+import { BookOpen, FileText, LogOut, Download, ExternalLink, Star, Heart, UploadCloud, Plus, X, Sun, Moon } from "lucide-react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import ProtectedRoute from "@/app/components/ProtectedRoute";
 
 export default function Dashboard() {
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
   const [profile, setProfile] = useState<any>(null);
   const [groupedResources, setGroupedResources] = useState<any[]>([]);
   const [bookmarks, setBookmarks] = useState<string[]>([]); 
   const [userLikes, setUserLikes] = useState<string[]>([]); 
   const [rawResources, setRawResources] = useState<any[]>([]);
   
-  // NEW: Smart Upload States (Matching the Admin Panel)
+  // Smart Upload States
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [uploadMode, setUploadMode] = useState<"existing" | "new">("existing");
   const [uniqueSubjects, setUniqueSubjects] = useState<any[]>([]);
@@ -23,6 +27,7 @@ export default function Dashboard() {
   const [uploadData, setUploadData] = useState({ name: "", code: "", type: "Notes", title: "", link: "" });
 
   useEffect(() => {
+    setMounted(true);
     fetchData();
   }, []);
 
@@ -149,15 +154,28 @@ export default function Dashboard() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-[#0a0a0a] text-white font-sans relative">
-        <nav className="border-b border-white/10 bg-black/20 backdrop-blur-lg sticky top-0 z-40">
+      <div className="min-h-screen bg-gray-50 dark:bg-[#0a0a0a] text-black dark:text-white font-sans relative transition-colors duration-300">
+        
+        {/* UPDATED NAVBAR WITH THEME TOGGLE */}
+        <nav className="border-b border-black/10 dark:border-white/10 bg-white/50 dark:bg-black/20 backdrop-blur-lg sticky top-0 z-40 transition-colors duration-300">
           <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-            <div className="text-xl font-bold tracking-tighter">EXAMS<span className="text-gray-500">.</span></div>
-            <div className="flex items-center space-x-6">
-              <span className="text-sm text-gray-400 hidden md:block">{profile?.full_name}</span>
-              <Link href="/profile" className="text-sm text-gray-400 hover:text-white transition-colors">Profile</Link>
-              {profile?.is_admin && <Link href="/admin" className="px-3 py-1 bg-white/10 text-xs rounded-full border border-white/20 hover:bg-white/20 transition-colors">Admin Panel</Link>}
-              <button onClick={handleLogout} className="text-gray-400 hover:text-white transition-colors"><LogOut className="w-5 h-5" /></button>
+            <div className="text-xl font-bold tracking-tighter text-black dark:text-white">EXAMS<span className="text-blue-500 dark:text-gray-500">.</span></div>
+            <div className="flex items-center space-x-4 md:space-x-6">
+              <span className="text-sm text-gray-600 dark:text-gray-400 hidden md:block">{profile?.full_name}</span>
+              
+              {/* THEME TOGGLE */}
+              {mounted && (
+                <button 
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-gray-600 dark:text-gray-400"
+                >
+                  {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                </button>
+              )}
+
+              <Link href="/profile" className="text-sm text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors">Profile</Link>
+              {profile?.is_admin && <Link href="/admin" className="px-3 py-1 bg-black/5 dark:bg-white/10 text-xs rounded-full border border-black/10 dark:border-white/20 hover:bg-black/10 dark:hover:bg-white/20 transition-colors text-black dark:text-white">Admin</Link>}
+              <button onClick={handleLogout} className="text-gray-600 dark:text-gray-400 hover:text-red-500 transition-colors"><LogOut className="w-5 h-5" /></button>
             </div>
           </div>
         </nav>
@@ -165,27 +183,28 @@ export default function Dashboard() {
         <main className="max-w-7xl mx-auto px-6 py-12">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6">
             <div>
-              <h1 className="text-3xl md:text-4xl font-bold mb-2">Welcome back, {profile?.full_name?.split(" ")[0]}</h1>
-              <p className="text-gray-400">Your curated Gurugram University materials.</p>
+              <h1 className="text-3xl md:text-4xl font-bold mb-2 text-gray-900 dark:text-white">Welcome back, {profile?.full_name?.split(" ")[0]}</h1>
+              <p className="text-gray-600 dark:text-gray-400">Your curated Gurugram University materials.</p>
             </div>
-            <button onClick={() => setIsUploadModalOpen(true)} className="flex items-center gap-2 bg-white text-black px-6 py-3 rounded-xl font-bold hover:bg-gray-200 transition-colors">
+            <button onClick={() => setIsUploadModalOpen(true)} className="flex items-center gap-2 bg-black dark:bg-white text-white dark:text-black px-6 py-3 rounded-xl font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors shadow-lg dark:shadow-none">
               <UploadCloud className="w-5 h-5" /> Contribute Material
             </button>
           </div>
 
+          {/* PINNED RESOURCES */}
           {pinnedResources.length > 0 && (
             <div className="mb-12">
-              <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Star className="w-5 h-5 text-yellow-500 fill-yellow-500" /> Saved for Later</h2>
+              <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-gray-800 dark:text-white"><Star className="w-5 h-5 text-yellow-500 fill-yellow-500" /> Saved for Later</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {pinnedResources.map(item => (
-                  <div key={`pinned-${item.id}`} className="bg-white/5 border border-white/10 p-4 rounded-2xl flex items-center justify-between">
+                  <div key={`pinned-${item.id}`} className="bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 p-4 rounded-2xl flex items-center justify-between shadow-sm dark:shadow-none transition-colors">
                     <div>
-                      <p className="text-xs text-gray-500 font-bold mb-1">{item.subject_code} • {item.resource_type}</p>
-                      <p className="text-sm font-medium">{item.title}</p>
+                      <p className="text-xs text-blue-500 dark:text-gray-500 font-bold mb-1">{item.subject_code} • {item.resource_type}</p>
+                      <p className="text-sm font-medium text-gray-800 dark:text-white">{item.title}</p>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => trackClickAndOpen(item.id, item.drive_link)} className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"><ExternalLink className="w-4 h-4" /></button>
-                      <button onClick={() => toggleBookmark(item.id)} className="p-2 bg-yellow-500/10 rounded-lg hover:bg-yellow-500/20 transition-colors"><Star className="w-4 h-4 text-yellow-500 fill-yellow-500" /></button>
+                      <button onClick={() => trackClickAndOpen(item.id, item.drive_link)} className="p-2 bg-gray-100 dark:bg-white/10 rounded-lg hover:bg-gray-200 dark:hover:bg-white/20 transition-colors"><ExternalLink className="w-4 h-4 text-gray-600 dark:text-white" /></button>
+                      <button onClick={() => toggleBookmark(item.id)} className="p-2 bg-yellow-50 dark:bg-yellow-500/10 rounded-lg hover:bg-yellow-100 dark:hover:bg-yellow-500/20 transition-colors"><Star className="w-4 h-4 text-yellow-500 fill-yellow-500" /></button>
                     </div>
                   </div>
                 ))}
@@ -193,58 +212,66 @@ export default function Dashboard() {
             </div>
           )}
 
-          <h2 className="text-xl font-bold mb-4 text-gray-300">All Subjects</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* ALL SUBJECTS WITH STAGGERED ANIMATION */}
+          <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-gray-300">All Subjects</h2>
+          <motion.div 
+            initial="hidden"
+            animate="visible"
+            variants={{
+              hidden: { opacity: 0 },
+              visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
+            }}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+          >
             {groupedResources.length === 0 ? <p className="text-gray-500">The vault is empty.</p> : 
               groupedResources.map((subjectData, index) => (
                 <SubjectCard key={subjectData.subject_code} data={subjectData} index={index} bookmarks={bookmarks} toggleBookmark={toggleBookmark} trackClickAndOpen={trackClickAndOpen} userLikes={userLikes} handleLike={handleLike} rawResources={rawResources} />
               ))
             }
-          </div>
+          </motion.div>
         </main>
 
-        {/* UPLOAD MODAL WITH SMART DROPDOWN */}
+        {/* UPLOAD MODAL */}
         <AnimatePresence>
           {isUploadModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-md bg-[#121212] border border-white/10 rounded-3xl p-6 shadow-2xl">
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-sm">
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-md bg-white dark:bg-[#121212] border border-gray-200 dark:border-white/10 rounded-3xl p-6 shadow-2xl">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-bold">Contribute Material</h3>
-                  <button onClick={() => setIsUploadModalOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">Contribute Material</h3>
+                  <button onClick={() => setIsUploadModalOpen(false)} className="text-gray-500 hover:text-black dark:hover:text-white transition-colors"><X className="w-5 h-5" /></button>
                 </div>
                 
-                {/* Upload Mode Toggle */}
-                <div className="flex bg-black/50 rounded-xl p-1 mb-6">
-                  <button onClick={() => setUploadMode("existing")} className={`flex-1 text-sm py-2 rounded-lg transition-colors ${uploadMode === "existing" ? "bg-white/10 font-bold" : "text-gray-500 hover:text-gray-300"}`}>Existing Subject</button>
-                  <button onClick={() => setUploadMode("new")} className={`flex-1 text-sm py-2 rounded-lg transition-colors ${uploadMode === "new" ? "bg-white/10 font-bold" : "text-gray-500 hover:text-gray-300"}`}>New Subject</button>
+                <div className="flex bg-gray-100 dark:bg-black/50 rounded-xl p-1 mb-6">
+                  <button onClick={() => setUploadMode("existing")} className={`flex-1 text-sm py-2 rounded-lg transition-colors ${uploadMode === "existing" ? "bg-white dark:bg-white/10 font-bold text-black dark:text-white shadow-sm dark:shadow-none" : "text-gray-500 hover:text-gray-900 dark:hover:text-gray-300"}`}>Existing Subject</button>
+                  <button onClick={() => setUploadMode("new")} className={`flex-1 text-sm py-2 rounded-lg transition-colors ${uploadMode === "new" ? "bg-white dark:bg-white/10 font-bold text-black dark:text-white shadow-sm dark:shadow-none" : "text-gray-500 hover:text-gray-900 dark:hover:text-gray-300"}`}>New Subject</button>
                 </div>
 
                 <form onSubmit={handleStudentSubmit} className="space-y-4">
                   
                   {uploadMode === "existing" ? (
                     uniqueSubjects.length > 0 ? (
-                      <select value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-white/30 text-gray-300">
+                      <select value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 dark:focus:border-white/30 text-gray-900 dark:text-gray-300">
                         {uniqueSubjects.map(sub => (
                           <option key={sub.code} value={JSON.stringify(sub)}>{sub.code} - {sub.name}</option>
                         ))}
                       </select>
                     ) : (
-                      <p className="text-sm text-yellow-500 p-2 bg-yellow-500/10 rounded-lg">No subjects exist yet. Switch to "New Subject".</p>
+                      <p className="text-sm text-yellow-600 dark:text-yellow-500 p-2 bg-yellow-50 dark:bg-yellow-500/10 rounded-lg">No subjects exist yet. Switch to "New Subject".</p>
                     )
                   ) : (
                     <div className="grid grid-cols-2 gap-4">
-                      <input type="text" placeholder="Subject Name" required value={uploadData.name} onChange={e => setUploadData({...uploadData, name: e.target.value})} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-white/30" />
-                      <input type="text" placeholder="Code (MAT-203)" required value={uploadData.code} onChange={e => setUploadData({...uploadData, code: e.target.value})} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-white/30" />
+                      <input type="text" placeholder="Subject Name" required value={uploadData.name} onChange={e => setUploadData({...uploadData, name: e.target.value})} className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 dark:focus:border-white/30 text-gray-900 dark:text-white" />
+                      <input type="text" placeholder="Code (MAT-203)" required value={uploadData.code} onChange={e => setUploadData({...uploadData, code: e.target.value})} className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 dark:focus:border-white/30 text-gray-900 dark:text-white" />
                     </div>
                   )}
 
-                  <select value={uploadData.type} onChange={e => setUploadData({...uploadData, type: e.target.value})} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-white/30 text-gray-300">
+                  <select value={uploadData.type} onChange={e => setUploadData({...uploadData, type: e.target.value})} className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 dark:focus:border-white/30 text-gray-900 dark:text-gray-300">
                     <option value="Notes">Notes</option><option value="PYQs">PYQs</option><option value="Assignments">Assignments</option>
                   </select>
-                  <input type="text" placeholder="Title (e.g., Unit 1 Notes)" required value={uploadData.title} onChange={e => setUploadData({...uploadData, title: e.target.value})} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-white/30" />
-                  <input type="url" placeholder="Google Drive Link" required value={uploadData.link} onChange={e => setUploadData({...uploadData, link: e.target.value})} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-white/30" />
+                  <input type="text" placeholder="Title (e.g., Unit 1 Notes)" required value={uploadData.title} onChange={e => setUploadData({...uploadData, title: e.target.value})} className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 dark:focus:border-white/30 text-gray-900 dark:text-white" />
+                  <input type="url" placeholder="Google Drive Link" required value={uploadData.link} onChange={e => setUploadData({...uploadData, link: e.target.value})} className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 dark:focus:border-white/30 text-gray-900 dark:text-white" />
                   
-                  <button type="submit" disabled={uploadMode === 'existing' && uniqueSubjects.length === 0} className="w-full bg-white text-black font-bold py-4 rounded-xl hover:bg-gray-200 transition-colors flex justify-center gap-2 mt-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                  <button type="submit" disabled={uploadMode === 'existing' && uniqueSubjects.length === 0} className="w-full bg-black dark:bg-white text-white dark:text-black font-bold py-4 rounded-xl hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors flex justify-center gap-2 mt-2 disabled:opacity-50 disabled:cursor-not-allowed">
                     <Plus className="w-5 h-5" /> Submit for Approval
                   </button>
                   <p className="text-xs text-center text-gray-500 mt-2">Admins will review your submission before it goes live.</p>
@@ -259,15 +286,24 @@ export default function Dashboard() {
   );
 }
 
-// Interactive Subject Card (Unchanged, included for easy copy-pasting)
-function SubjectCard({ data, index, bookmarks, toggleBookmark, trackClickAndOpen, userLikes, handleLike, rawResources }: any) {
+// V3.0 Interactive Subject Card 
+function SubjectCard({ data, bookmarks, toggleBookmark, trackClickAndOpen, userLikes, handleLike, rawResources }: any) {
   const [activeTab, setActiveTab] = useState<string | null>(null);
 
+  // Framer Motion variant for the cascading effect
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
+  };
+
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.1 }} className="p-6 rounded-3xl bg-white/5 border border-white/10 backdrop-blur-md flex flex-col h-fit">
+    <motion.div 
+      variants={itemVariants}
+      className="p-6 rounded-3xl bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 shadow-sm dark:shadow-none backdrop-blur-md flex flex-col h-fit transition-colors duration-300"
+    >
       <div className="mb-6">
-        <span className="text-xs font-bold tracking-wider text-gray-500 mb-2 block">{data.subject_code}</span>
-        <h3 className="text-xl font-semibold text-gray-100">{data.subject_name}</h3>
+        <span className="text-xs font-bold tracking-wider text-blue-500 dark:text-gray-500 mb-2 block">{data.subject_code}</span>
+        <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{data.subject_name}</h3>
       </div>
 
       <div className="grid grid-cols-3 gap-2">
@@ -276,50 +312,65 @@ function SubjectCard({ data, index, bookmarks, toggleBookmark, trackClickAndOpen
         <TabButton icon={<Download size={16}/>} label="Assign" count={data.Assignments.length} isActive={activeTab === 'Assignments'} onClick={() => setActiveTab(activeTab === 'Assignments' ? null : 'Assignments')} />
       </div>
 
-      {activeTab && (
-        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mt-4 bg-black/40 rounded-2xl p-4 border border-white/5">
-          {data[activeTab].length === 0 ? (
-            <p className="text-sm text-center text-gray-500 py-2">No items here yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {data[activeTab].map((item: any) => {
-                const isSaved = bookmarks.includes(item.id);
-                const isLiked = userLikes.includes(item.id);
-                const currentItem = rawResources.find((r: any) => r.id === item.id) || item;
+      <AnimatePresence>
+        {activeTab && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }} 
+            animate={{ opacity: 1, height: "auto" }} 
+            exit={{ opacity: 0, height: 0 }}
+            className="mt-4 bg-gray-50 dark:bg-black/40 rounded-2xl p-4 border border-gray-100 dark:border-white/5 overflow-hidden"
+          >
+            {data[activeTab].length === 0 ? (
+              <p className="text-sm text-center text-gray-500 dark:text-gray-500 py-2">No items here yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {data[activeTab].map((item: any) => {
+                  const isSaved = bookmarks.includes(item.id);
+                  const isLiked = userLikes.includes(item.id);
+                  const currentItem = rawResources.find((r: any) => r.id === item.id) || item;
 
-                return (
-                  <div key={item.id} className="flex flex-col gap-2 bg-white/5 p-3 rounded-xl border border-white/5 group relative">
-                    {!item.is_approved && (
-                       <span className="absolute -top-2 -right-2 bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded-full">Pending Approval</span>
-                    )}
-                    
-                    <button onClick={() => trackClickAndOpen(item.id, item.drive_link)} className="text-left flex items-center justify-between group-hover:text-white transition-colors">
-                      <span className="text-sm text-gray-200 font-medium truncate pr-4">{item.title}</span>
-                      <ExternalLink className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400" />
-                    </button>
-                    
-                    <div className="flex items-center justify-between mt-1">
-                       <button onClick={() => handleLike(item.id)} className={`flex items-center gap-1.5 text-xs font-semibold transition-colors ${isLiked ? 'text-pink-500' : 'text-gray-500 hover:text-pink-400'}`}>
-                         <Heart className={`w-4 h-4 ${isLiked ? 'fill-pink-500' : ''}`} /> {currentItem.likes_count || 0}
-                       </button>
-                       <button onClick={() => toggleBookmark(item.id)} className="p-1 hover:scale-110 transition-transform">
-                         <Star className={`w-4 h-4 ${isSaved ? 'text-yellow-500 fill-yellow-500' : 'text-gray-600 hover:text-yellow-500'}`} />
-                       </button>
+                  return (
+                    <div key={item.id} className="flex flex-col gap-2 bg-white dark:bg-white/5 p-3 rounded-xl border border-gray-200 dark:border-white/5 shadow-sm dark:shadow-none group relative transition-colors">
+                      {!item.is_approved && (
+                         <span className="absolute -top-2 -right-2 bg-yellow-400 dark:bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md">Pending</span>
+                      )}
+                      
+                      <button onClick={() => trackClickAndOpen(item.id, item.drive_link)} className="text-left flex items-center justify-between text-gray-700 dark:text-gray-200 group-hover:text-black dark:group-hover:text-white transition-colors">
+                        <span className="text-sm font-medium truncate pr-4">{item.title}</span>
+                        <ExternalLink className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 dark:text-gray-500" />
+                      </button>
+                      
+                      <div className="flex items-center justify-between mt-1">
+                         <button onClick={() => handleLike(item.id)} className={`flex items-center gap-1.5 text-xs font-semibold transition-colors ${isLiked ? 'text-pink-500' : 'text-gray-400 dark:text-gray-500 hover:text-pink-400'}`}>
+                           <Heart className={`w-4 h-4 ${isLiked ? 'fill-pink-500' : ''}`} /> {currentItem.likes_count || 0}
+                         </button>
+                         <button onClick={() => toggleBookmark(item.id)} className="p-1 hover:scale-110 transition-transform">
+                           <Star className={`w-4 h-4 ${isSaved ? 'text-yellow-400 dark:text-yellow-500 fill-yellow-400 dark:fill-yellow-500' : 'text-gray-300 dark:text-gray-600 hover:text-yellow-400 dark:hover:text-yellow-500'}`} />
+                         </button>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </motion.div>
-      )}
+                  );
+                })}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
 
+// V3.0 Tab Button
 function TabButton({ icon, label, count, isActive, onClick }: any) {
   return (
-    <button onClick={onClick} className={`flex flex-col items-center justify-center gap-1 py-3 rounded-xl border transition-colors ${isActive ? 'bg-white text-black border-white' : 'bg-black/50 text-gray-400 border-white/5 hover:bg-white/10 hover:text-gray-200'}`}>
+    <button 
+      onClick={onClick} 
+      className={`flex flex-col items-center justify-center gap-1 py-3 rounded-xl border transition-colors duration-300 ${
+        isActive 
+          ? 'bg-blue-500 dark:bg-white text-white dark:text-black border-blue-500 dark:border-white shadow-md dark:shadow-none' 
+          : 'bg-gray-50 dark:bg-black/50 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-white/5 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-gray-200'
+      }`}
+    >
       <div className="flex items-center gap-1">{icon}<span className="text-xs font-bold">{count}</span></div>
       <span className="text-[10px] uppercase tracking-wide">{label}</span>
     </button>

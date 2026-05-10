@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Toaster } from "react-hot-toast";
+import { ThemeProvider } from "next-themes"; // <-- NEW
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -9,20 +10,23 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="antialiased bg-[#0a0a0a]">
-        {children}
-        <Toaster 
-          position="bottom-right"
-          toastOptions={{
-            style: {
-              background: '#18181b', // Dark zinc color
-              color: '#fff',
-              border: '1px solid rgba(255,255,255,0.1)',
-              backdropFilter: 'blur(10px)',
-            },
-          }} 
-        />
+    // suppressHydrationWarning is required by next-themes
+    <html lang="en" suppressHydrationWarning> 
+      <body className="antialiased bg-gray-50 dark:bg-[#0a0a0a] text-black dark:text-white transition-colors duration-300">
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+          {children}
+          <Toaster 
+            position="bottom-right"
+            toastOptions={{
+              style: {
+                background: 'var(--toast-bg, #18181b)',
+                color: 'var(--toast-color, #fff)',
+                border: '1px solid rgba(150,150,150,0.2)',
+                backdropFilter: 'blur(10px)',
+              },
+            }} 
+          />
+        </ThemeProvider>
       </body>
     </html>
   );
