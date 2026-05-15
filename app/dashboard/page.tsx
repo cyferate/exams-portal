@@ -26,6 +26,10 @@ export default function Dashboard() {
   const [selectedSubject, setSelectedSubject] = useState("");
   const [uploadData, setUploadData] = useState({ name: "", code: "", type: "Notes", title: "", link: "" });
 
+  // NEW: Profile Completion States
+  const [isProfileIncomplete, setIsProfileIncomplete] = useState(false);
+  const [step2Data, setStep2Data] = useState({ rollNo: "", semester: "1", branch: "CSE CORE-A", customBranch: "" });
+
   useEffect(() => {
     setMounted(true);
     fetchData();
@@ -38,6 +42,11 @@ export default function Dashboard() {
     // Fetch Profile
     const { data: profileData } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
     setProfile(profileData);
+
+    // NEW: Check if profile needs completion (Google Sign-In caught them)
+    if (!profileData?.roll_no || !profileData?.branch) {
+      setIsProfileIncomplete(true);
+    }
 
     // Fetch Resources
     const { data: resourceData } = await supabase.from("resources").select("*").order("created_at", { ascending: false });
@@ -150,12 +159,77 @@ export default function Dashboard() {
     }
   };
 
+  // NEW: Save Step 2 Profile Data
+  const handleCompleteProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const rollNoRegex = /^\d{12}$/; 
+    if (!rollNoRegex.test(step2Data.rollNo)) return toast.error("Roll Number must be exactly 12 digits.");
+
+    const finalBranch = step2Data.branch === "Other" ? step2Data.customBranch : step2Data.branch;
+    if (step2Data.branch === "Other" && !step2Data.customBranch) return toast.error("Specify custom branch.");
+
+    const loadingToast = toast.loading("Updating profile...");
+    const { data: { session } } = await supabase.auth.getSession();
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ roll_no: step2Data.rollNo, semester: step2Data.semester, branch: finalBranch })
+      .eq('id', session?.user.id);
+
+    if (error) {
+      toast.error(error.message, { id: loadingToast });
+    } else {
+      toast.success("Profile Complete. Welcome to the Vault.", { id: loadingToast });
+      setIsProfileIncomplete(false);
+      fetchData(); // Refresh the dashboard
+    }
+  };
+
   const pinnedResources = rawResources.filter(res => bookmarks.includes(res.id));
 
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50 dark:bg-[#0a0a0a] text-black dark:text-white font-sans relative transition-colors duration-300">
         
+        {/* NEW: FORCED PROFILE COMPLETION MODAL */}
+        <AnimatePresence>
+          {isProfileIncomplete && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md bg-white dark:bg-[#121212] border border-gray-200 dark:border-white/10 rounded-3xl p-8 shadow-2xl">
+                <h2 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">Almost there!</h2>
+                <p className="text-gray-500 mb-6 text-sm">Since you signed in with Google, we just need your University details to configure your Vault.</p>
+                
+                <form onSubmit={handleCompleteProfile} className="space-y-4">
+                  <input type="text" placeholder="Roll Number (12 Digits)" required value={step2Data.rollNo} onChange={e => setStep2Data({...step2Data, rollNo: e.target.value})} className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 dark:focus:border-white/30 text-gray-900 dark:text-white" />
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <select value={step2Data.semester} onChange={e => setStep2Data({...step2Data, semester: e.target.value})} className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 dark:focus:border-white/30 text-gray-900 dark:text-gray-300">
+                      <option disabled value="">Semester</option>
+                      {[1, 2, 3, 4, 5, 6, 7, 8].map(num => <option key={num} value={num}>Sem {num}</option>)}
+                    </select>
+                    <select value={step2Data.branch} onChange={e => setStep2Data({...step2Data, branch: e.target.value})} className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 dark:focus:border-white/30 text-gray-900 dark:text-gray-300">
+                      <option value="CSE CORE-A">CSE CORE-A</option>
+                      <option value="CSE CORE-B">CSE CORE-B</option>
+                      <option value="CSE-AI">CSE-AI</option>
+                      <option value="CSE-CS">CSE-CS</option>
+                      <option value="CSE-IoT">CSE-IoT</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  {step2Data.branch === "Other" && (
+                    <input type="text" placeholder="Enter your branch manually" required value={step2Data.customBranch} onChange={e => setStep2Data({...step2Data, customBranch: e.target.value})} className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 dark:focus:border-white/30 text-gray-900 dark:text-white" />
+                  )}
+                  
+                  <button type="submit" className="w-full bg-black dark:bg-white text-white dark:text-black font-bold py-3 rounded-xl hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors mt-4">
+                    Complete Profile
+                  </button>
+                </form>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
         {/* UPDATED NAVBAR WITH THEME TOGGLE */}
         <nav className="border-b border-black/10 dark:border-white/10 bg-white/50 dark:bg-black/20 backdrop-blur-lg sticky top-0 z-40 transition-colors duration-300">
           <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -375,4 +449,4 @@ function TabButton({ icon, label, count, isActive, onClick }: any) {
       <span className="text-[10px] uppercase tracking-wide">{label}</span>
     </button>
   );
-} 
+}
