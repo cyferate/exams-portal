@@ -20,6 +20,10 @@ export default function ProfilePage() {
     branch: "CSE CORE-A",
     passing_year: "",
   });
+  
+  // NEW: State for custom branch
+  const [customBranch, setCustomBranch] = useState("");
+  const predefinedBranches = ["CSE CORE-A", "CSE CORE-B", "CSE-AI", "CSE-CS", "CSE-IoT"];
 
   useEffect(() => {
     async function loadProfile() {
@@ -29,14 +33,22 @@ export default function ProfilePage() {
       const { data } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
       
       if (data) {
+        const fetchedBranch = data.branch || "CSE CORE-A";
+        const isPredefined = predefinedBranches.includes(fetchedBranch);
+
         setProfileData({
           id: data.id,
           full_name: data.full_name || "",
           roll_no: data.roll_no || "",
           semester: data.semester || "1",
-          branch: data.branch || "CSE CORE-A",
+          branch: isPredefined ? fetchedBranch : "Other",
           passing_year: data.passing_year || "",
         });
+
+        // If their saved branch isn't in the standard list, populate the custom textbox
+        if (!isPredefined) {
+          setCustomBranch(fetchedBranch);
+        }
       }
       setLoading(false);
     }
@@ -45,6 +57,14 @@ export default function ProfilePage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // NEW: Branch Validation before saving
+    const finalBranch = profileData.branch === "Other" ? customBranch : profileData.branch;
+    if (profileData.branch === "Other" && !customBranch.trim()) {
+      toast.error("Please specify your custom branch.");
+      return;
+    }
+
     setSaving(true);
     const savingToast = toast.loading("Updating profile...");
 
@@ -53,7 +73,7 @@ export default function ProfilePage() {
       .update({
         full_name: profileData.full_name,
         semester: profileData.semester,
-        branch: profileData.branch,
+        branch: finalBranch,
         passing_year: profileData.passing_year,
       })
       .eq("id", profileData.id);
@@ -95,16 +115,43 @@ export default function ProfilePage() {
                 <input type="text" value={profileData.roll_no} disabled className="w-full bg-black/30 border border-white/5 rounded-xl px-4 py-3 text-gray-500 cursor-not-allowed" />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                 <div>
                   <label className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-2 block">Semester</label>
                   <select value={profileData.semester} onChange={(e) => setProfileData({...profileData, semester: e.target.value})} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-white/30 text-gray-300">
                     {[1, 2, 3, 4, 5, 6, 7, 8].map(num => <option key={num} value={num}>Semester {num}</option>)}
                   </select>
                 </div>
-                <div>
+                
+                {/* NEW: Dynamic Branch Dropdown */}
+                <div className="flex flex-col">
                   <label className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-2 block">Branch</label>
-                  <input type="text" value={profileData.branch} onChange={(e) => setProfileData({...profileData, branch: e.target.value})} placeholder="e.g., CSE-AI" className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-white/30" />
+                  <select 
+                    value={profileData.branch} 
+                    onChange={(e) => setProfileData({...profileData, branch: e.target.value})} 
+                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-white/30 text-gray-300"
+                  >
+                    <option value="CSE CORE-A">CSE CORE-A</option>
+                    <option value="CSE CORE-B">CSE CORE-B</option>
+                    <option value="CSE-AI">CSE-AI</option>
+                    <option value="CSE-CS">CSE-CS</option>
+                    <option value="CSE-IoT">CSE-IoT</option>
+                    <option value="Other">Other...</option>
+                  </select>
+
+                  {/* Smoothly reveal custom text box if "Other" is selected */}
+                  {profileData.branch === "Other" && (
+                    <motion.input 
+                      initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                      animate={{ opacity: 1, height: "auto", marginTop: 12 }}
+                      type="text" 
+                      placeholder="Enter your branch manually" 
+                      required 
+                      value={customBranch} 
+                      onChange={(e) => setCustomBranch(e.target.value)} 
+                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-white/30 text-white" 
+                    />
+                  )}
                 </div>
               </div>
 
