@@ -7,7 +7,6 @@ import Link from "next/link";
 import ShimmerText from "@/app/components/ShimmerText";
 import CinematicCanvas from "@/app/components/CinematicCanvas";
 
-// --- CONTENT DATA PAYLOADS ---
 const NODE_DATA: Record<string, { left: any[], right: any[], title: string, subtitle: string }> = {
   "Geeks Community": {
     title: "The Geeks Community",
@@ -63,42 +62,39 @@ const NODE_DATA: Record<string, { left: any[], right: any[], title: string, subt
 
 export default function LandingPage() {
   const [activeNode, setActiveNode] = useState<string | null>(null);
+  const mobileStreamRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (activeNode && window.innerWidth < 1024 && mobileStreamRef.current) {
+      setTimeout(() => {
+        mobileStreamRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 150);
+    }
+  }, [activeNode]);
 
   return (
     <div className="relative min-h-screen bg-[#020202] text-white selection:bg-white/20 font-sans overflow-x-hidden flex flex-col">
-
-      {/* TACTILE NOISE OVERLAY */}
       <div className="pointer-events-none fixed inset-0 z-[60] h-full w-full opacity-[0.03] mix-blend-overlay" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }} />
-
       <CinematicCanvas />
 
-      {/* Navbar */}
       <nav className="relative z-50 flex items-center justify-between px-6 py-6 lg:px-12 max-w-[1400px] w-full mx-auto flex-shrink-0">
         <motion.div onClick={() => setActiveNode(null)} initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }} className="text-2xl font-bold tracking-tighter flex items-center cursor-pointer group">
           <ShimmerText className="text-white group-hover:text-gray-200 transition-colors">EXAMS</ShimmerText><span className="text-gray-400">.</span>
         </motion.div>
-        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.1 }}>
-          <Link href="/admin" className="text-xs font-bold tracking-widest uppercase text-gray-400 hover:text-white transition-colors px-4 py-2 rounded-full border border-white/10 hover:border-white/30 bg-black/20 backdrop-blur-md">Admin</Link>
-        </motion.div>
       </nav>
 
-      {/* Main Layout Container */}
       <main className="relative z-10 flex flex-col lg:flex-row flex-1 w-full max-w-[1600px] mx-auto items-center justify-between px-4 lg:px-0">
 
-        {/* DESKTOP LEFT DATA STREAM */}
         <div className="hidden lg:flex w-[280px] h-[75vh] relative z-20 flex-col justify-center items-end ml-8">
           <AnimatePresence mode="wait">
-            {activeNode && NODE_DATA[activeNode]?.left && (
-              <DataStream streamData={NODE_DATA[activeNode].left} direction="up" key={`left-${activeNode}`} />
-            )}
+            {activeNode && NODE_DATA[activeNode]?.left && <DataStream streamData={NODE_DATA[activeNode].left} direction="up" key={`left-${activeNode}`} />}
           </AnimatePresence>
         </div>
 
-        {/* CENTER ORBITAL HUB */}
         <div className="flex-1 flex flex-col items-center justify-center relative z-30 pointer-events-none w-full py-12 lg:py-0">
           <div className="pointer-events-auto flex flex-col items-center w-full max-w-4xl px-4">
 
-            <div className="min-h-[200px] md:min-h-[260px] flex flex-col items-center justify-center mb-6 text-center transition-all duration-500 w-full">
+            <div className="flex flex-col items-center justify-center text-center transition-all duration-500 w-full z-30">
               <AnimatePresence mode="wait">
                 {!activeNode ? (
                   <motion.div key="default-hero" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="flex flex-col items-center w-full">
@@ -106,10 +102,8 @@ export default function LandingPage() {
                       <Sparkles className="w-4 h-4 text-gray-400" />
                       <span className="text-[10px] sm:text-xs font-medium text-gray-300 tracking-wider uppercase">Engineered for Gurugram University</span>
                     </div>
-
                     <StaggeredHeading text="The Exclusive Hub for" />
-
-                    <h1 className="whitespace-nowrap text-[2rem] sm:text-6xl lg:text-[5.5rem] font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-gray-200 to-gray-500 drop-shadow-2xl leading-normal pb-4 mt-2">
+                    <h1 className="whitespace-nowrap text-[2.2rem] sm:text-6xl lg:text-[5.5rem] font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-gray-200 to-gray-500 drop-shadow-2xl leading-normal mt-2">
                       Gurugram University
                     </h1>
                   </motion.div>
@@ -129,13 +123,7 @@ export default function LandingPage() {
               </AnimatePresence>
             </div>
 
-            {/* The Orbital Engine */}
-            <div className="scale-75 md:scale-100">
-              <RadialOrbit activeNode={activeNode} setActiveNode={setActiveNode} />
-            </div>
-
-            {/* Enter Vault Button */}
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1 }} className="mt-8 md:mt-12 z-20 pointer-events-auto">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1 }} className="mt-8 mb-8 z-40 pointer-events-auto flex justify-center w-full">
               <Link href="/auth">
                 <MagneticButton>
                   <span className="mr-2 relative z-10 text-white font-bold tracking-wide">Enter the Vault</span>
@@ -143,44 +131,39 @@ export default function LandingPage() {
                 </MagneticButton>
               </Link>
             </motion.div>
+
+            <div className="scale-75 md:scale-100 z-20">
+              <RadialOrbit activeNode={activeNode} setActiveNode={setActiveNode} />
+            </div>
+
           </div>
         </div>
 
-        {/* DESKTOP RIGHT DATA STREAM */}
         <div className="hidden lg:flex w-[280px] h-[75vh] relative z-20 flex-col justify-center items-start mr-8">
           <AnimatePresence mode="wait">
-            {activeNode && NODE_DATA[activeNode]?.right && (
-              <DataStream streamData={NODE_DATA[activeNode].right} direction="down" key={`right-${activeNode}`} />
-            )}
+            {activeNode && NODE_DATA[activeNode]?.right && <DataStream streamData={NODE_DATA[activeNode].right} direction="down" key={`right-${activeNode}`} />}
           </AnimatePresence>
         </div>
 
-        {/* MOBILE DATA STREAMS (Appears below Orbit on small screens) */}
         <AnimatePresence>
           {activeNode && (
             <motion.div
+              ref={mobileStreamRef}
               initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
-              className="flex flex-col lg:hidden w-full max-w-md mx-auto px-4 mt-12 pb-24 gap-4 pointer-events-auto"
+              className="flex flex-col lg:hidden w-full max-w-md mx-auto px-4 mt-8 pb-24 gap-4 pointer-events-auto scroll-mt-6"
             >
               <div className="flex items-center gap-2 mb-2">
                 <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent to-white/20" />
                 <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-500">Access Links</span>
                 <div className="h-[1px] flex-1 bg-gradient-to-l from-transparent to-white/20" />
               </div>
-
-              {NODE_DATA[activeNode]?.left.map((item, idx) => (
-                <TracedBentoBox key={`mob-left-${idx}`} data={item} />
-              ))}
-              {NODE_DATA[activeNode]?.right.map((item, idx) => (
-                <TracedBentoBox key={`mob-right-${idx}`} data={item} />
-              ))}
+              {NODE_DATA[activeNode]?.left.map((item, idx) => <TracedBentoBox key={`mob-left-${idx}`} data={item} />)}
+              {NODE_DATA[activeNode]?.right.map((item, idx) => <TracedBentoBox key={`mob-right-${idx}`} data={item} />)}
             </motion.div>
           )}
         </AnimatePresence>
-
       </main>
 
-      {/* INDEPENDENT ARCHITECT BRANDING */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1.5, delay: 1.5 }} className="fixed bottom-6 right-8 z-[100] pointer-events-auto hidden md:block">
         <p className="text-[10px] uppercase tracking-[0.2em] text-gray-500 font-medium opacity-50 hover:opacity-100 transition-opacity cursor-default flex items-center gap-2">
           Architected by <span className="text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]">Divyanshu</span>
@@ -200,7 +183,6 @@ export default function LandingPage() {
   );
 }
 
-// ---------------- STAGGERED HEADING COMPONENT ----------------
 function StaggeredHeading({ text }: { text: string }) {
   const words = text.split(" ");
   return (
@@ -214,23 +196,16 @@ function StaggeredHeading({ text }: { text: string }) {
   );
 }
 
-// ---------------- DATA STREAM (MARQUEE) COMPONENT ----------------
 function DataStream({ streamData, direction }: { streamData: any[], direction: "up" | "down" }) {
   const duplicatedData = [...streamData, ...streamData];
   const animationClass = direction === "up" ? "animate-marquee-up" : "animate-marquee-down";
-
   return (
     <motion.div initial={{ opacity: 0, x: direction === "up" ? -30 : 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: direction === "up" ? -30 : 30 }} transition={{ duration: 0.6, ease: "easeOut" }} className="h-full w-full overflow-hidden relative pause-on-hover pointer-events-auto [mask-image:linear-gradient(to_bottom,transparent,black_15%,black_85%,transparent)]">
-      <div className={`marquee-container ${animationClass}`}>
-        {duplicatedData.map((item, idx) => (
-          <TracedBentoBox key={idx} data={item} />
-        ))}
-      </div>
+      <div className={`marquee-container ${animationClass}`}>{duplicatedData.map((item, idx) => <TracedBentoBox key={idx} data={item} />)}</div>
     </motion.div>
   );
 }
 
-// ---------------- TRACED BENTO BOX COMPONENT ----------------
 function TracedBentoBox({ data }: { data: any }) {
   const isLink = data.type === "whatsapp";
   const content = (
@@ -250,7 +225,6 @@ function TracedBentoBox({ data }: { data: any }) {
   return <div className="block w-full">{content}</div>;
 }
 
-// ---------------- ADVANCED RADIAL ORBITAL ENGINE ----------------
 function RadialOrbit({ activeNode, setActiveNode }: { activeNode: string | null, setActiveNode: (val: string | null) => void }) {
   const orbitRadius = 170;
   const rotationAngle = useMotionValue(0);
@@ -261,8 +235,7 @@ function RadialOrbit({ activeNode, setActiveNode }: { activeNode: string | null,
     const safeDelta = Math.min(delta, 32);
     const targetSpeed = (hoveredNode !== null || activeNode !== null) ? 0 : 1;
     speedMultiplier.current += (targetSpeed - speedMultiplier.current) * 0.08;
-    const step = 0.015 * safeDelta * speedMultiplier.current;
-    rotationAngle.set(rotationAngle.get() + step);
+    rotationAngle.set(rotationAngle.get() + (0.015 * safeDelta * speedMultiplier.current));
   });
 
   const orbitItems = [
@@ -280,23 +253,37 @@ function RadialOrbit({ activeNode, setActiveNode }: { activeNode: string | null,
           <div className="w-4 h-4 rounded-full bg-white shadow-[0_0_20px_rgba(255,255,255,1)]" />
         </div>
       </div>
-
       <motion.div style={{ rotate: rotationAngle }} className={`absolute z-10 w-[340px] h-[340px] rounded-full border border-dashed transition-colors duration-500 ${activeNode ? 'border-indigo-500/30' : 'border-white/20'}`}>
         {orbitItems.map((item, i) => {
           const staticAngle = (i / orbitItems.length) * 360;
           const counterRotate = useTransform(rotationAngle, (r) => -r - staticAngle);
           const isActive = activeNode === item.id;
           const isHovered = hoveredNode === item.id;
-
           return (
             <div key={i} className="absolute top-1/2 left-1/2" style={{ transform: `translate(-50%, -50%) rotate(${staticAngle}deg) translateY(-${orbitRadius}px)` }}>
               <motion.div style={{ rotate: counterRotate }} className="relative flex flex-col items-center gap-3 w-40 cursor-pointer pointer-events-auto" onMouseEnter={() => setHoveredNode(item.id)} onMouseLeave={() => setHoveredNode(null)} onClick={() => setActiveNode(isActive ? null : item.id)}>
+
+                {/* RESTORED: Beautiful Glassmorphic Hover Tooltip */}
+                <AnimatePresence>
+                  {isHovered && !isActive && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.9 }}
+                      className="absolute -top-[100px] left-1/2 -translate-x-1/2 w-48 bg-[#0a0a0a]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl pointer-events-none z-50 flex flex-col items-center text-center"
+                    >
+                      <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-[#0a0a0a]/95 border-b border-r border-white/10 rotate-45" />
+                      <p className="text-xs font-bold text-white mb-1.5">{item.label}</p>
+                      <p className="text-[10px] text-gray-400 leading-relaxed">{NODE_DATA[item.id]?.subtitle}</p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
                 <div className={`relative flex items-center justify-center w-14 h-14 rounded-full bg-[#0a0a0a] border backdrop-blur-xl shadow-lg transition-all duration-300 ${isActive ? 'scale-125 border-indigo-500 shadow-[0_0_40px_rgba(99,102,241,0.4)]' : isHovered ? 'scale-110 border-white/50 shadow-[0_0_30px_rgba(255,255,255,0.2)]' : 'border-white/10'}`}>
                   <div className={`absolute inset-0 rounded-full transition-opacity duration-300 ${isActive ? 'bg-indigo-500/20 opacity-100' : 'bg-white/5 opacity-0 group-hover:opacity-100'}`} />
                   {item.icon}
                 </div>
                 <span className={`text-[11px] font-medium tracking-wide uppercase text-center drop-shadow-md transition-colors duration-300 ${isActive ? 'text-indigo-300 font-bold' : isHovered ? 'text-white' : 'text-gray-400'}`}>{item.label}</span>
-                {!activeNode && !isActive && <div className="absolute top-0 w-14 h-14 rounded-full border border-white/30 animate-ping opacity-20 pointer-events-none" />}
               </motion.div>
             </div>
           );
@@ -309,7 +296,6 @@ function RadialOrbit({ activeNode, setActiveNode }: { activeNode: string | null,
 function MagneticButton({ children }: { children: React.ReactNode }) {
   const ref = useRef<HTMLButtonElement>(null);
   const [position, setPosition] = useState({ x: 0, y: 0 });
-
   const handleMouse = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (!ref.current) return;
     const { clientX, clientY } = e;
@@ -317,7 +303,6 @@ function MagneticButton({ children }: { children: React.ReactNode }) {
     setPosition({ x: (clientX - (left + width / 2)) * 0.15, y: (clientY - (top + height / 2)) * 0.15 });
   };
   const reset = () => setPosition({ x: 0, y: 0 });
-
   return (
     <motion.button ref={ref} onMouseMove={handleMouse} onMouseLeave={reset} animate={{ x: position.x, y: position.y }} transition={{ type: "spring", stiffness: 150, damping: 15, mass: 0.1 }} className="group relative inline-flex items-center justify-center px-8 py-4 sm:px-10 sm:py-5 font-semibold bg-white/5 border border-white/20 rounded-full overflow-hidden transition-all duration-300 hover:shadow-[0_0_40px_rgba(255,255,255,0.15)] active:scale-95 backdrop-blur-md">
       <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-white/5 translate-y-[100%] group-hover:translate-y-0 transition-transform duration-500 ease-out" />
