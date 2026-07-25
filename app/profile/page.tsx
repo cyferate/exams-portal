@@ -31,7 +31,6 @@ export default function ProfilePage() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
 
-    // Fetch Profile
     const { data: profileData } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
     setProfile(profileData);
 
@@ -46,7 +45,6 @@ export default function ProfilePage() {
       });
     }
 
-    // Fetch Submissions
     const { data: mySubmissions } = await supabase
       .from("resources")
       .select("*")
@@ -55,7 +53,6 @@ export default function ProfilePage() {
 
     if (mySubmissions) setSubmissions(mySubmissions);
 
-    // Fetch Leaderboard for XP and Global Rank
     const { data: leaderboardData } = await supabase.rpc('get_leaderboard');
     if (leaderboardData) {
       const myRank = leaderboardData.find((u: any) => u.user_id === session.user.id);
@@ -82,7 +79,7 @@ export default function ProfilePage() {
     } else {
       toast.success("Profile updated successfully!", { id: loadingToast });
       setIsEditing(false);
-      fetchData(); // Silently refresh the data to lock it in
+      fetchData();
     }
   };
 
@@ -90,16 +87,18 @@ export default function ProfilePage() {
     <ProtectedRoute>
       <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0a0a0a] text-black dark:text-white font-sans transition-colors duration-300 pb-20">
 
-        {/* Navbar */}
+        {/* Navbar with Responsive Fixes */}
         <nav className="border-b border-gray-200 dark:border-white/10 bg-white/70 dark:bg-black/40 backdrop-blur-xl sticky top-0 z-40">
-          <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-            <Link href="/dashboard" className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-black dark:hover:text-white transition-colors">
-              <ArrowLeft className="w-4 h-4" /> BACK TO VAULT
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between relative">
+            <Link href="/dashboard" className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-black dark:hover:text-white transition-colors z-10 p-2 -ml-2 sm:ml-0 sm:p-0">
+              <ArrowLeft className="w-5 h-5 sm:w-4 sm:h-4" />
+              {/* HIDDEN ON MOBILE: Prevents collision with center logo */}
+              <span className="hidden sm:inline">BACK TO VAULT</span>
             </Link>
-            <div className="text-xl font-bold tracking-tighter flex items-center absolute left-1/2 -translate-x-1/2">
+            <div className="text-xl font-bold tracking-tighter flex items-center absolute left-1/2 -translate-x-1/2 w-max">
               <ShimmerText className="text-black dark:text-white">EXAMS</ShimmerText><span className="text-blue-500">.</span>
             </div>
-            <div>
+            <div className="z-10">
               {mounted && <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-gray-600 dark:text-gray-400">{theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}</button>}
             </div>
           </div>
@@ -156,7 +155,6 @@ export default function ProfilePage() {
                 {!isEditing ? (
                   <motion.div key="view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
-                      {/* RESTORED: Immutable Roll Number */}
                       <div className="col-span-2">
                         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Roll Number</span>
                         <p className="text-sm font-semibold text-gray-900 dark:text-white font-mono tracking-wider">{profile?.roll_no || "Not set"}</p>
@@ -174,7 +172,6 @@ export default function ProfilePage() {
                 ) : (
                   <motion.div key="edit" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
 
-                    {/* Locked Roll Number Input */}
                     <div>
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Roll Number</span>
                       <input

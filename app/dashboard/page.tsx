@@ -333,8 +333,9 @@ export default function Dashboard() {
                 />
               </div>
 
-              <div className="flex gap-4 w-full md:w-auto">
-                <div className="relative w-full md:w-52 flex-shrink-0">
+              {/* MOBILE FIX: flex-col sm:flex-row forces dropdowns to stack neatly on phones */}
+              <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+                <div className="relative w-full sm:w-52 flex-shrink-0">
                   <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <select
                     value={filterSemester}
@@ -347,7 +348,7 @@ export default function Dashboard() {
                   </select>
                 </div>
 
-                <div className="relative w-full md:w-48 flex-shrink-0">
+                <div className="relative w-full sm:w-48 flex-shrink-0">
                   <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <select
                     value={filterBranch}
@@ -356,7 +357,7 @@ export default function Dashboard() {
                   >
                     <option value="All">All Branches</option>
                     <option value="CSE-AI">CSE-AI</option>
-                    <option value="CSE CORE-A">CSE CORE</option>
+                    <option value="CSE CORE">CSE CORE</option>
                     <option value="CSE-CS">CSE-CS</option>
                     <option value="CSE-IoT">CSE-IoT</option>
                     <option value="Other">Other</option>
@@ -420,7 +421,7 @@ export default function Dashboard() {
                           className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none text-gray-900 dark:text-gray-300"
                         >
                           <option value="CSE-AI">CSE-AI</option>
-                          <option value="CSE CORE-A">CSE CORE</option>
+                          <option value="CSE CORE">CSE CORE</option>
                           <option value="CSE-CS">CSE-CS</option>
                           <option value="CSE-IoT">CSE-IoT</option>
                           <option value="Other">Other</option>
