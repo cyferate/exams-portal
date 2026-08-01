@@ -4,8 +4,8 @@ import { useRef, useState, useEffect } from "react";
 import { motion, useAnimationFrame, useMotionValue, useTransform, AnimatePresence } from "framer-motion";
 import { ArrowRight, BookOpen, Trophy, Shield, Sparkles, Code2, Network, ExternalLink, Calendar, PenTool, FileText, X } from "lucide-react";
 import Link from "next/link";
-import ShimmerText from "@/app/components/ShimmerText";
 import CinematicCanvas from "@/app/components/CinematicCanvas";
+import Logo from "@/app/components/Logo";
 
 const NODE_DATA: Record<string, { left: any[], right: any[], title: string, subtitle: string }> = {
   "Geeks Community": {
@@ -78,8 +78,8 @@ export default function LandingPage() {
       <CinematicCanvas />
 
       <nav className="relative z-50 flex items-center justify-between px-6 py-6 lg:px-12 max-w-[1400px] w-full mx-auto flex-shrink-0">
-        <motion.div onClick={() => setActiveNode(null)} initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }} className="text-2xl font-bold tracking-tighter flex items-center cursor-pointer group">
-          <ShimmerText className="text-white group-hover:text-gray-200 transition-colors">EXAMS</ShimmerText><span className="text-gray-400">.</span>
+        <motion.div onClick={() => setActiveNode(null)} initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }} className="cursor-pointer group">
+          <Logo className="w-28 md:w-36 text-white opacity-90 group-hover:opacity-100 transition-opacity" />
         </motion.div>
       </nav>
 
@@ -263,7 +263,6 @@ function RadialOrbit({ activeNode, setActiveNode }: { activeNode: string | null,
             <div key={i} className="absolute top-1/2 left-1/2" style={{ transform: `translate(-50%, -50%) rotate(${staticAngle}deg) translateY(-${orbitRadius}px)` }}>
               <motion.div style={{ rotate: counterRotate }} className="relative flex flex-col items-center gap-3 w-40 cursor-pointer pointer-events-auto" onMouseEnter={() => setHoveredNode(item.id)} onMouseLeave={() => setHoveredNode(null)} onClick={() => setActiveNode(isActive ? null : item.id)}>
 
-                {/* RESTORED: Beautiful Glassmorphic Hover Tooltip */}
                 <AnimatePresence>
                   {isHovered && !isActive && (
                     <motion.div

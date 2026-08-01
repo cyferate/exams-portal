@@ -4,12 +4,12 @@ import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, FileText, LogOut, Download, ExternalLink, Star, Heart, UploadCloud, Plus, X, Sun, Moon, Trophy, ArrowUp, ArrowDown, Search, Filter } from "lucide-react";
+import { BookOpen, FileText, LogOut, Download, ExternalLink, Star, Heart, UploadCloud, Plus, X, Sun, Moon, Trophy, ArrowUp, ArrowDown, Search, Filter, Flag } from "lucide-react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import ProtectedRoute from "@/app/components/ProtectedRoute";
-import ShimmerText from "@/app/components/ShimmerText";
 import VaporText from "@/app/components/VaporText";
+import Logo from "@/app/components/Logo";
 
 export default function Dashboard() {
   const { theme, setTheme } = useTheme();
@@ -23,7 +23,6 @@ export default function Dashboard() {
   const [rawResources, setRawResources] = useState<any[]>([]);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
 
-  // Search & Filter State
   const [searchQuery, setSearchQuery] = useState("");
   const [filterSemester, setFilterSemester] = useState("All");
   const [filterBranch, setFilterBranch] = useState("All");
@@ -40,7 +39,6 @@ export default function Dashboard() {
   useEffect(() => {
     setMounted(true);
     fetchData();
-
     const handleScroll = () => setScrollY(window.scrollY);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
@@ -59,19 +57,12 @@ export default function Dashboard() {
     const { data: profileData } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
     setProfile(profileData);
 
-    // SMART AUTO-SELECT LOGIC
     if (profileData) {
       const userSem = profileData.semester?.toString() || "1";
       const userBranch = profileData.branch || "CSE-AI";
       const isFirstYear = userSem === "1" || userSem === "2";
 
-      setUploadData(prev => ({
-        ...prev,
-        target_semester: userSem,
-        target_branch: userBranch
-      }));
-
-      // Default Filter Auto-Selection based on user profile
+      setUploadData(prev => ({ ...prev, target_semester: userSem, target_branch: userBranch }));
       setFilterSemester(isFirstYear ? "1-2" : userSem);
       setFilterBranch(userBranch);
     }
@@ -81,10 +72,10 @@ export default function Dashboard() {
     const { data: resourceData } = await supabase.from("resources").select("*").order("created_at", { ascending: false });
     if (resourceData) {
       setRawResources(resourceData);
-      const approvedAndMine = resourceData.filter(r => r.is_approved || r.submitted_by === session.user.id);
+      const approvedAndMine = resourceData.filter(r => (r.is_approved || r.submitted_by === session.user.id) && (r.flags_count || 0) < 3);
 
       const subjectsMap = new Map();
-      resourceData.filter(r => r.is_approved).forEach(r => {
+      resourceData.filter(r => r.is_approved && (r.flags_count || 0) < 3).forEach(r => {
         if (!subjectsMap.has(r.subject_code)) subjectsMap.set(r.subject_code, { code: r.subject_code, name: r.subject_name });
       });
       const subjectsArray = Array.from(subjectsMap.values());
@@ -93,13 +84,7 @@ export default function Dashboard() {
 
       const grouped = approvedAndMine.reduce((acc: any, curr: any) => {
         const code = curr.subject_code;
-        if (!acc[code]) acc[code] = {
-          subject_name: curr.subject_name,
-          subject_code: curr.subject_code,
-          target_semester: curr.target_semester || "1",
-          target_branch: curr.target_branch || "CSE-AI",
-          Notes: [], PYQs: [], Assignments: []
-        };
+        if (!acc[code]) acc[code] = { subject_name: curr.subject_name, subject_code: curr.subject_code, target_semester: curr.target_semester || "1", target_branch: curr.target_branch || "CSE-AI", Notes: [], PYQs: [], Assignments: [] };
         if (acc[code][curr.resource_type]) acc[code][curr.resource_type].push(curr);
         return acc;
       }, {});
@@ -146,6 +131,12 @@ export default function Dashboard() {
       setRawResources(rawResources.map(r => r.id === resourceId ? { ...r, likes_count: (r.likes_count || 0) + 1 } : r));
     }
     await supabase.rpc('toggle_like', { res_id: resourceId });
+  };
+
+  const handleFlag = async (resourceId: string) => {
+    const loadingToast = toast.loading("Reporting link...");
+    await supabase.rpc('increment_flag', { res_id: resourceId });
+    toast.success("Flagged for Admin Review. Thanks for keeping the Vault clean!", { id: loadingToast });
     fetchData();
   };
 
@@ -167,15 +158,7 @@ export default function Dashboard() {
     }
 
     const { error } = await supabase.from("resources").insert([{
-      subject_name: finalName,
-      subject_code: finalCode,
-      resource_type: uploadData.type,
-      title: uploadData.title,
-      drive_link: uploadData.link,
-      is_approved: false,
-      submitted_by: session?.user.id,
-      target_semester: uploadData.target_semester,
-      target_branch: uploadData.target_branch
+      subject_name: finalName, subject_code: finalCode, resource_type: uploadData.type, title: uploadData.title, drive_link: uploadData.link, is_approved: false, submitted_by: session?.user.id, target_semester: uploadData.target_semester, target_branch: uploadData.target_branch
     }]);
 
     if (error) toast.error("Submission failed: " + error.message, { id: loadingToast });
@@ -202,21 +185,12 @@ export default function Dashboard() {
   const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
   const scrollToBottom = () => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
 
-  // SMART FILTERING ENGINE
-  const pinnedResources = rawResources.filter(res => bookmarks.includes(res.id));
+  const pinnedResources = rawResources.filter(res => bookmarks.includes(res.id) && (res.flags_count || 0) < 3);
 
   const filteredSubjects = groupedResources.filter(sub => {
     const matchesSearch = sub.subject_name.toLowerCase().includes(searchQuery.toLowerCase()) || sub.subject_code.toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesSem = filterSemester === "All"
-      ? true
-      : filterSemester === "1-2"
-        ? (sub.target_semester === "1" || sub.target_semester === "2")
-        : sub.target_semester === filterSemester;
-
-    // Keep backwards compatibility for legacy "Common First Year" data while filtering by the selected branch
+    const matchesSem = filterSemester === "All" ? true : filterSemester === "1-2" ? (sub.target_semester === "1" || sub.target_semester === "2") : sub.target_semester === filterSemester;
     const matchesBranch = filterBranch === "All" || sub.target_branch === filterBranch || sub.target_branch === "Common First Year";
-
     return matchesSearch && matchesSem && matchesBranch;
   });
 
@@ -268,7 +242,10 @@ export default function Dashboard() {
 
         <nav className="border-b border-black/10 dark:border-white/10 bg-white/70 dark:bg-black/40 backdrop-blur-xl sticky top-0 z-40 transition-colors duration-300">
           <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-            <div className="text-xl font-bold tracking-tighter flex items-center"><ShimmerText className="text-black dark:text-white">EXAMS</ShimmerText><span className="text-blue-500 dark:text-gray-500">.</span></div>
+            <Link href="/dashboard" className="flex items-center hover:opacity-80 transition-opacity">
+              <Logo className="w-24 md:w-28 text-black dark:text-white" />
+            </Link>
+
             <div className="flex items-center space-x-4 md:space-x-6">
               <span className="text-sm text-gray-600 dark:text-gray-400 hidden md:block">{profile?.full_name}</span>
               {mounted && <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-gray-600 dark:text-gray-400">{theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}</button>}
@@ -303,7 +280,7 @@ export default function Dashboard() {
               <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-gray-800 dark:text-white"><Star className="w-5 h-5 text-yellow-500 fill-yellow-500" /> Saved for Later</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {pinnedResources.map(item => (
-                  <div key={`pinned-${item.id}`} className="bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 p-4 rounded-2xl flex items-center justify-between shadow-sm transition-colors">
+                  <div key={`pinned-${item.id}`} className="bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 p-4 rounded-2xl flex items-center justify-between shadow-sm transition-colors group">
                     <div>
                       <p className="text-xs text-blue-500 dark:text-gray-500 font-bold mb-1">{item.subject_code} • {item.resource_type}</p>
                       <p className="text-sm font-medium text-gray-800 dark:text-white">{item.title}</p>
@@ -333,7 +310,6 @@ export default function Dashboard() {
                 />
               </div>
 
-              {/* MOBILE FIX: flex-col sm:flex-row forces dropdowns to stack neatly on phones */}
               <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
                 <div className="relative w-full sm:w-52 flex-shrink-0">
                   <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -357,7 +333,7 @@ export default function Dashboard() {
                   >
                     <option value="All">All Branches</option>
                     <option value="CSE-AI">CSE-AI</option>
-                    <option value="CSE CORE">CSE CORE</option>
+                    <option value="CSE CORE-A">CSE CORE</option>
                     <option value="CSE-CS">CSE-CS</option>
                     <option value="CSE-IoT">CSE-IoT</option>
                     <option value="Other">Other</option>
@@ -377,7 +353,7 @@ export default function Dashboard() {
                 </motion.div>
               ) : (
                 filteredSubjects.map((subjectData, index) => (
-                  <SubjectCard key={subjectData.subject_code} data={subjectData} index={index} bookmarks={bookmarks} toggleBookmark={toggleBookmark} trackClickAndOpen={trackClickAndOpen} userLikes={userLikes} handleLike={handleLike} rawResources={rawResources} />
+                  <SubjectCard key={subjectData.subject_code} data={subjectData} index={index} bookmarks={bookmarks} toggleBookmark={toggleBookmark} trackClickAndOpen={trackClickAndOpen} userLikes={userLikes} handleLike={handleLike} handleFlag={handleFlag} rawResources={rawResources} />
                 ))
               )}
             </AnimatePresence>
@@ -394,8 +370,8 @@ export default function Dashboard() {
                 </div>
 
                 <div className="flex bg-gray-100 dark:bg-black/50 rounded-xl p-1 mb-6">
-                  <button onClick={() => setUploadMode("existing")} className={`flex-1 text-sm py-2 rounded-lg transition-colors ${uploadMode === "existing" ? "bg-white dark:bg-white/10 font-bold text-black dark:text-white shadow-sm dark:shadow-none" : "text-gray-500 hover:text-gray-900 dark:hover:text-gray-300"}`}>Existing</button>
-                  <button onClick={() => setUploadMode("new")} className={`flex-1 text-sm py-2 rounded-lg transition-colors ${uploadMode === "new" ? "bg-white dark:bg-white/10 font-bold text-black dark:text-white shadow-sm dark:shadow-none" : "text-gray-500 hover:text-gray-900 dark:hover:text-gray-300"}`}>New Subject</button>
+                  <button onClick={() => setUploadMode("existing")} className={`flex-1 text-sm py-2 rounded-lg transition-colors ${uploadMode === "existing" ? "bg-white dark:bg-white/10 font-bold shadow-sm dark:shadow-none" : "text-gray-500 hover:text-gray-900 dark:hover:text-gray-300"}`}>Existing</button>
+                  <button onClick={() => setUploadMode("new")} className={`flex-1 text-sm py-2 rounded-lg transition-colors ${uploadMode === "new" ? "bg-white dark:bg-white/10 font-bold shadow-sm dark:shadow-none" : "text-gray-500 hover:text-gray-900 dark:hover:text-gray-300"}`}>New Subject</button>
                 </div>
 
                 <form onSubmit={handleStudentSubmit} className="space-y-4">
@@ -421,7 +397,7 @@ export default function Dashboard() {
                           className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none text-gray-900 dark:text-gray-300"
                         >
                           <option value="CSE-AI">CSE-AI</option>
-                          <option value="CSE CORE">CSE CORE</option>
+                          <option value="CSE CORE-A">CSE CORE</option>
                           <option value="CSE-CS">CSE-CS</option>
                           <option value="CSE-IoT">CSE-IoT</option>
                           <option value="Other">Other</option>
@@ -446,43 +422,72 @@ export default function Dashboard() {
   );
 }
 
-// ---------------- PODIUM CARD COMPONENT ----------------
+// ---------------- PODIUM CARD COMPONENT (RESTORED GLOWING LIGHTS) ----------------
 function PodiumCard({ user, rank }: { user: any, rank: number }) {
   if (!user) return <div className="hidden" />;
-  let heightClass = "", gradientClass = "", glowClass = "", iconColor = "", innerGlow = "", rankWatermark = "", orderClass = "";
+
+  let heightClass = "", orderClass = "";
+  let gradientClass = "", glowClass = "", iconColor = "", innerGlow = "";
   const syncedSpeed = "[animation-duration:4s]";
+
   if (rank === 1) {
-    heightClass = "h-72 md:h-80 md:scale-105 z-20 md:mx-2"; gradientClass = "bg-[conic-gradient(from_0deg,transparent_70%,#F59E0B_95%,#FFFFFF_100%)]"; glowClass = "bg-[conic-gradient(from_0deg,transparent_70%,#F59E0B_95%,#FFFFFF_100%)] blur-[12px] opacity-80"; iconColor = "text-yellow-500 drop-shadow-[0_0_15px_rgba(234,179,8,0.8)]"; innerGlow = "bg-gradient-to-b from-yellow-500/10 to-transparent dark:from-yellow-900/20"; rankWatermark = "1"; orderClass = "order-1 md:order-2";
+    heightClass = "h-72 md:h-80 md:scale-105 z-20 md:mx-2";
+    orderClass = "order-1 md:order-2";
+    gradientClass = "bg-[conic-gradient(from_0deg,transparent_70%,#F59E0B_95%,#FFFFFF_100%)]";
+    glowClass = "bg-[conic-gradient(from_0deg,transparent_70%,#F59E0B_95%,#FFFFFF_100%)] blur-[12px] opacity-80";
+    iconColor = "text-yellow-500 drop-shadow-[0_0_15px_rgba(234,179,8,0.8)]";
+    innerGlow = "bg-gradient-to-b from-yellow-500/10 to-transparent dark:from-yellow-900/20";
   } else if (rank === 2) {
-    heightClass = "h-64 md:h-72 z-10"; gradientClass = "bg-[conic-gradient(from_0deg,transparent_70%,#94A3B8_95%,#FFFFFF_100%)]"; glowClass = "bg-[conic-gradient(from_0deg,transparent_70%,#94A3B8_95%,#FFFFFF_100%)] blur-[12px] opacity-80"; iconColor = "text-slate-400 drop-shadow-[0_0_15px_rgba(148,163,184,0.8)]"; innerGlow = "bg-gradient-to-b from-slate-400/10 to-transparent dark:from-slate-800/20"; rankWatermark = "2"; orderClass = "order-2 md:order-1";
+    heightClass = "h-64 md:h-72 z-10";
+    orderClass = "order-2 md:order-1";
+    gradientClass = "bg-[conic-gradient(from_0deg,transparent_70%,#94A3B8_95%,#FFFFFF_100%)]";
+    glowClass = "bg-[conic-gradient(from_0deg,transparent_70%,#94A3B8_95%,#FFFFFF_100%)] blur-[12px] opacity-80";
+    iconColor = "text-slate-400 drop-shadow-[0_0_15px_rgba(148,163,184,0.8)]";
+    innerGlow = "bg-gradient-to-b from-slate-400/10 to-transparent dark:from-slate-800/20";
   } else {
-    heightClass = "h-56 md:h-64 z-10"; gradientClass = "bg-[conic-gradient(from_0deg,transparent_70%,#EA580C_95%,#FFFFFF_100%)]"; glowClass = "bg-[conic-gradient(from_0deg,transparent_70%,#EA580C_95%,#FFFFFF_100%)] blur-[12px] opacity-80"; iconColor = "text-orange-500 drop-shadow-[0_0_15px_rgba(234,88,12,0.8)]"; innerGlow = "bg-gradient-to-b from-orange-500/10 to-transparent dark:from-orange-900/20"; rankWatermark = "3"; orderClass = "order-3 md:order-3";
+    heightClass = "h-56 md:h-64 z-10";
+    orderClass = "order-3 md:order-3";
+    gradientClass = "bg-[conic-gradient(from_0deg,transparent_70%,#EA580C_95%,#FFFFFF_100%)]";
+    glowClass = "bg-[conic-gradient(from_0deg,transparent_70%,#EA580C_95%,#FFFFFF_100%)] blur-[12px] opacity-80";
+    iconColor = "text-orange-500 drop-shadow-[0_0_15px_rgba(234,88,12,0.8)]";
+    innerGlow = "bg-gradient-to-b from-orange-500/10 to-transparent dark:from-orange-900/20";
   }
+
   return (
     <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: rank * 0.1, ease: "easeOut" }} className={`relative overflow-hidden rounded-[2rem] p-[1.5px] flex flex-col w-full shadow-xl group transition-all duration-500 hover:-translate-y-3 hover:shadow-2xl ${heightClass} ${orderClass}`}>
+
+      {/* THE DOUBLE-LAYERED GLOW MECHANIC */}
       <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200%] h-[200%] animate-spin ${glowClass} ${syncedSpeed}`} />
       <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200%] h-[200%] animate-spin ${gradientClass} ${syncedSpeed}`} />
+
       <div className={`absolute inset-[1.5px] bg-white dark:bg-[#0c0c0c] rounded-[calc(2rem-1.5px)] z-10 transition-colors ${innerGlow} shadow-inner flex flex-col items-center justify-center overflow-hidden`}>
+
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03] dark:opacity-[0.05] group-hover:opacity-10 dark:group-hover:opacity-20 transition-all duration-700 ease-out z-0">
-          <span className="text-[12rem] md:text-[14rem] font-black leading-none text-black dark:text-white scale-95 group-hover:scale-105 transition-transform duration-700 ease-out">{rankWatermark}</span>
+          <span className="text-[12rem] md:text-[14rem] font-black leading-none text-black dark:text-white scale-95 group-hover:scale-105 transition-transform duration-700 ease-out">{rank}</span>
         </div>
+
         <div className="relative z-20 flex flex-col items-center justify-center h-full p-6 text-center w-full">
+
           <Trophy className={`w-12 h-12 md:w-16 md:h-16 mb-4 ${iconColor} transform group-hover:scale-110 transition-transform duration-500`} />
+
           <h3 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white truncate w-full tracking-tight mb-1">{user.full_name?.split(" ")[0]}</h3>
+
           <p className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-6 uppercase tracking-widest">{user.branch || "Student"}</p>
+
           <div className="mt-auto flex flex-col w-full">
             <div className="w-full px-5 py-3 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 backdrop-blur-md flex items-center justify-center">
               <span className="text-lg md:text-xl font-extrabold text-gray-800 dark:text-gray-200">{user.xp_score} XP</span>
             </div>
           </div>
+
         </div>
       </div>
     </motion.div>
   );
 }
 
-// ---------------- SUBJECT CARD COMPONENT ----------------
-function SubjectCard({ data, bookmarks, toggleBookmark, trackClickAndOpen, userLikes, handleLike, rawResources }: any) {
+// ---------------- SUBJECT CARD COMPONENT (WITH FLAGGING) ----------------
+function SubjectCard({ data, bookmarks, toggleBookmark, trackClickAndOpen, userLikes, handleLike, handleFlag, rawResources }: any) {
   const [activeTab, setActiveTab] = useState<string | null>(null);
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className="p-6 rounded-3xl bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 shadow-sm hover:shadow-blue-900/5 dark:shadow-none backdrop-blur-md flex flex-col h-fit transition-all duration-300 group hover:-translate-y-2 dark:hover:shadow-[0_10px_30px_rgba(255,255,255,0.05)]">
@@ -515,7 +520,12 @@ function SubjectCard({ data, bookmarks, toggleBookmark, trackClickAndOpen, userL
                       </button>
                       <div className="flex items-center justify-between mt-1">
                         <button onClick={() => handleLike(item.id)} className={`flex items-center gap-1.5 text-xs font-semibold ${isLiked ? 'text-pink-500' : 'text-gray-400'}`}><Heart className={`w-4 h-4 ${isLiked ? 'fill-pink-500' : ''}`} /> {currentItem.likes_count || 0}</button>
-                        <button onClick={() => toggleBookmark(item.id)} className="p-1 hover:scale-110"><Star className={`w-4 h-4 ${isSaved ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} /></button>
+
+                        <div className="flex gap-1">
+                          {/* FLAG REPORT BUTTON */}
+                          <button onClick={() => handleFlag(item.id)} title="Report Broken Link" className="p-1 hover:scale-110 opacity-0 group-hover/item:opacity-100 transition-opacity"><Flag className="w-4 h-4 text-red-300 hover:text-red-500 hover:fill-red-500" /></button>
+                          <button onClick={() => toggleBookmark(item.id)} className="p-1 hover:scale-110"><Star className={`w-4 h-4 ${isSaved ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} /></button>
+                        </div>
                       </div>
                     </div>
                   );

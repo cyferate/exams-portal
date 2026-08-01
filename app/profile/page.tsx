@@ -9,7 +9,7 @@ import { useTheme } from "next-themes";
 import { Sun, Moon } from "lucide-react";
 import toast from "react-hot-toast";
 import ProtectedRoute from "@/app/components/ProtectedRoute";
-import ShimmerText from "@/app/components/ShimmerText";
+import Logo from "@/app/components/Logo";
 
 export default function ProfilePage() {
   const { theme, setTheme } = useTheme();
@@ -95,9 +95,11 @@ export default function ProfilePage() {
               {/* HIDDEN ON MOBILE: Prevents collision with center logo */}
               <span className="hidden sm:inline">BACK TO VAULT</span>
             </Link>
-            <div className="text-xl font-bold tracking-tighter flex items-center absolute left-1/2 -translate-x-1/2 w-max">
-              <ShimmerText className="text-black dark:text-white">EXAMS</ShimmerText><span className="text-blue-500">.</span>
+
+            <div className="absolute left-1/2 -translate-x-1/2 w-max z-10 flex items-center justify-center pointer-events-none">
+              <Logo className="w-24 md:w-28 text-black dark:text-white pointer-events-auto" />
             </div>
+
             <div className="z-10">
               {mounted && <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-gray-600 dark:text-gray-400">{theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}</button>}
             </div>

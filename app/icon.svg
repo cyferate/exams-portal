@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@900&amp;display=swap');
+      .txt { font-family: 'Montserrat', sans-serif; font-weight: 900; font-size: 200px; fill: #ffffff; }
+    </style>
+  </defs>
+  <rect width="500" height="500" fill="#0a0a0a"/>
+  
+  <text x="76" y="325" class="txt">E</text>
+  
+  <!-- Scaled up Geometric 'X' with Twin Slashes -->
+  <g transform="translate(230, 180) scale(1.25)">
+    <polygon points="0,0 45,0 110,120 65,120" fill="#ffffff"/>
+    <polygon points="95,0 85,0 0,120 10,120" fill="#3b82f6"/>
+    <polygon points="110,0 100,0 15,120 25,120" fill="#3b82f6"/>
+  </g>
+  
+  <text x="385" y="325" class="txt" fill="#3b82f6">.</text>
+</svg>

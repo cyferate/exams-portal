@@ -1,16 +1,31 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Toaster } from 'react-hot-toast';
 import { ThemeProvider } from '@/app/components/ThemeProvider';
-import { Analytics } from '@vercel/analytics/react'; // <-- NEW
-import { SpeedInsights } from '@vercel/speed-insights/next'; // <-- NEW
+import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 const inter = Inter({ subsets: ['latin'] });
+
+// PWA Viewport Configuration: Prevents clunky auto-zooming on mobile devices
+export const viewport: Viewport = {
+  themeColor: '#0a0a0a',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
 
 export const metadata: Metadata = {
   title: 'EXAMS. | The Vault',
   description: 'The exclusive, peer-curated academic intelligence hub for Gurugram University. Access previous year questions, semester notes, and assignments.',
+  manifest: '/manifest.json', // <-- INJECTS THE APP MANIFEST
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'EXAMS',
+  },
   keywords: ['Gurugram University', 'EXAMS', 'Notes', 'PYQ', 'Engineering', 'BTech', 'Student Portal'],
   openGraph: {
     title: 'EXAMS. | The Vault',
@@ -54,7 +69,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
         </ThemeProvider>
 
-        {/* VERCEL TELEMETRY INJECTED HERE */}
         <Analytics />
         <SpeedInsights />
       </body>
