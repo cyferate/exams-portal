@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect } from "react";
 import { motion, useAnimationFrame, useMotionValue, useTransform, AnimatePresence } from "framer-motion";
-import { ArrowRight, BookOpen, Trophy, Shield, Sparkles, Code2, Network, ExternalLink, Calendar, PenTool, FileText, X } from "lucide-react";
+import { ArrowRight, BookOpen, Trophy, Shield, Sparkles, Code2, Network, ExternalLink, Calendar, PenTool, FileText, X, Camera } from "lucide-react";
 import Link from "next/link";
 import CinematicCanvas from "@/app/components/CinematicCanvas";
 import Logo from "@/app/components/Logo";
@@ -13,6 +13,7 @@ const NODE_DATA: Record<string, { left: any[], right: any[], title: string, subt
     subtitle: "Solely architected and independently engineered digital society.",
     left: [
       { title: "Tech Geeks ⚙️", link: "https://chat.whatsapp.com/K63swM9EZHD2auoKKADVr7", type: "whatsapp" },
+      { title: "Photo Geeks 📸", link: "https://chat.whatsapp.com/Luqo9VZ2BikFgAxGHthNTC?s=cl&p=a&ilr=4", type: "whatsapp", isNew: true },
       { title: "Irony Geeks 😉", link: "https://chat.whatsapp.com/GJczJxfDoZd9snXDeLsoWa", type: "whatsapp" },
       { title: "Litrature Geeks 📜", link: "https://chat.whatsapp.com/DIWFLAe5o4yD0rtUbRn05D", type: "whatsapp" },
       { title: "Geopolitics Geeks 🌍", link: "https://chat.whatsapp.com/FFDt9VLP1DE9qnJ4cVUVyy", type: "whatsapp" },
@@ -98,6 +99,27 @@ export default function LandingPage() {
               <AnimatePresence mode="wait">
                 {!activeNode ? (
                   <motion.div key="default-hero" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="flex flex-col items-center w-full">
+
+                    {/* --- SLEEK ANNOUNCEMENT BANNER --- */}
+                    <Link href="/garuda">
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.2, duration: 0.6 }}
+                        className="flex items-center gap-3 px-5 py-2.5 rounded-full border border-blue-500/30 bg-blue-500/10 backdrop-blur-md mb-6 relative overflow-hidden group cursor-pointer shadow-[0_0_25px_rgba(59,130,246,0.15)] hover:border-blue-400/50 transition-colors"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-blue-500/10 to-blue-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out" />
+                        <span className="flex h-2 w-2 relative">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                        </span>
+                        <span className="text-xs sm:text-sm font-medium text-blue-100 tracking-wide">
+                          <strong className="text-white font-bold tracking-wider">GARUDA&lt;sh&gt;</strong> Live & <strong className="text-cyan-400 font-bold">Photo Geeks</strong> Open
+                        </span>
+                        <ArrowRight className="w-4 h-4 text-blue-400 group-hover:translate-x-1 transition-transform" />
+                      </motion.div>
+                    </Link>
+
                     <div className="flex items-center gap-2 mb-4 md:mb-6 px-4 py-2 rounded-full border border-white/10 bg-white/[0.03] backdrop-blur-md">
                       <Sparkles className="w-4 h-4 text-gray-400" />
                       <span className="text-[10px] sm:text-xs font-medium text-gray-300 tracking-wider uppercase">Engineered for Gurugram University</span>
@@ -208,16 +230,26 @@ function DataStream({ streamData, direction }: { streamData: any[], direction: "
 
 function TracedBentoBox({ data }: { data: any }) {
   const isLink = data.type === "whatsapp";
+  const isNew = data.isNew;
+
   const content = (
-    <div className="relative group overflow-hidden rounded-2xl bg-[#0a0a0a]/80 backdrop-blur-md border border-dashed border-white/20 p-5 hover:border-white/50 transition-colors duration-300 w-full shadow-lg">
+    <div className={`relative group overflow-hidden rounded-2xl backdrop-blur-md p-5 transition-colors duration-300 w-full shadow-lg ${isNew
+      ? 'bg-[#0f172a]/95 border border-cyan-500/40 hover:border-cyan-400/80 shadow-[0_0_20px_rgba(34,211,238,0.15)]'
+      : 'bg-[#0a0a0a]/80 border border-dashed border-white/20 hover:border-white/50'
+      }`}>
       <div className="absolute inset-0 bg-gradient-to-br from-white/[0.05] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
       <div className="relative z-10 flex items-start justify-between">
         <div className="flex-1">
-          <h4 className="text-[15px] font-bold text-gray-100 mb-1 flex items-center gap-2">{data.icon} {data.title}</h4>
+          <h4 className="text-[15px] font-bold text-gray-100 mb-1 flex items-center gap-2">
+            {data.icon} {data.title}
+            {isNew && (
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-black tracking-widest uppercase bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 animate-pulse ml-1">New</span>
+            )}
+          </h4>
           {data.desc && <p className="text-xs text-gray-400 leading-relaxed mt-2">{data.desc}</p>}
-          {isLink && <span className="text-[10px] text-green-400/80 font-bold tracking-widest uppercase mt-3 block">Join Network</span>}
+          {isLink && <span className={`text-[10px] font-bold tracking-widest uppercase mt-3 block ${isNew ? 'text-cyan-400' : 'text-green-400/80'}`}>Join Network</span>}
         </div>
-        {isLink && <ExternalLink className="w-4 h-4 text-gray-500 group-hover:text-white transition-colors ml-3 flex-shrink-0" />}
+        {isLink && <ExternalLink className={`w-4 h-4 group-hover:text-white transition-colors ml-3 flex-shrink-0 ${isNew ? 'text-cyan-400' : 'text-gray-500'}`} />}
       </div>
     </div>
   );
