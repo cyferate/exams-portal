@@ -249,6 +249,13 @@ export default function Dashboard() {
             <div className="flex items-center space-x-4 md:space-x-6">
               <span className="text-sm text-gray-600 dark:text-gray-400 hidden md:block">{profile?.full_name}</span>
               {mounted && <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-gray-600 dark:text-gray-400">{theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}</button>}
+
+              {/* ------------- GARUDA SH LINK ADDED HERE ------------- */}
+              <Link href="/garuda" className="text-sm font-mono font-bold text-blue-500 dark:text-blue-400 hover:underline transition-colors flex items-center gap-1">
+                GARUDA&lt;sh&gt;
+              </Link>
+              {/* ----------------------------------------------------- */}
+
               <Link href="/profile" className="text-sm text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors">Profile</Link>
               {profile?.is_admin && <Link href="/admin" className="px-3 py-1 bg-black/5 dark:bg-white/10 text-xs rounded-full border border-black/10 dark:border-white/20 hover:bg-black/10 dark:hover:bg-white/20 transition-colors text-black dark:text-white">Admin</Link>}
               <button onClick={handleLogout} className="text-gray-600 dark:text-gray-400 hover:text-red-500 transition-colors"><LogOut className="w-5 h-5" /></button>
