@@ -31,10 +31,10 @@ export default function Dashboard() {
   const [uploadMode, setUploadMode] = useState<"existing" | "new">("existing");
   const [uniqueSubjects, setUniqueSubjects] = useState<any[]>([]);
   const [selectedSubject, setSelectedSubject] = useState("");
-  const [uploadData, setUploadData] = useState({ name: "", code: "", type: "Notes", title: "", link: "", target_semester: "1", target_branch: "CSE-AI" });
+  const [uploadData, setUploadData] = useState({ name: "", code: "", type: "Notes", title: "", link: "", target_semester: "1", target_branch: "Common First Year" });
 
   const [isProfileIncomplete, setIsProfileIncomplete] = useState(false);
-  const [step2Data, setStep2Data] = useState({ rollNo: "", semester: "1", branch: "CSE-AI", customBranch: "" });
+  const [step2Data, setStep2Data] = useState({ rollNo: "", semester: "1", branch: "Common First Year", customBranch: "" });
 
   useEffect(() => {
     setMounted(true);
@@ -59,8 +59,8 @@ export default function Dashboard() {
 
     if (profileData) {
       const userSem = profileData.semester?.toString() || "1";
-      const userBranch = profileData.branch || "CSE-AI";
       const isFirstYear = userSem === "1" || userSem === "2";
+      const userBranch = isFirstYear ? "Common First Year" : (profileData.branch || "CSE-AI");
 
       setUploadData(prev => ({ ...prev, target_semester: userSem, target_branch: userBranch }));
       setFilterSemester(isFirstYear ? "1-2" : userSem);
@@ -157,15 +157,17 @@ export default function Dashboard() {
       finalName = parsed.name;
     }
 
+    const finalBranch = (uploadData.target_semester === "1" || uploadData.target_semester === "2") ? "Common First Year" : uploadData.target_branch;
+
     const { error } = await supabase.from("resources").insert([{
-      subject_name: finalName, subject_code: finalCode, resource_type: uploadData.type, title: uploadData.title, drive_link: uploadData.link, is_approved: false, submitted_by: session?.user.id, target_semester: uploadData.target_semester, target_branch: uploadData.target_branch
+      subject_name: finalName, subject_code: finalCode, resource_type: uploadData.type, title: uploadData.title, drive_link: uploadData.link, is_approved: false, submitted_by: session?.user.id, target_semester: uploadData.target_semester, target_branch: finalBranch
     }]);
 
     if (error) toast.error("Submission failed: " + error.message, { id: loadingToast });
     else {
       toast.success("Submitted! Waiting for Admin approval.", { id: loadingToast, duration: 4000 });
       setIsUploadModalOpen(false);
-      setUploadData({ name: "", code: "", type: "Notes", title: "", link: "", target_semester: profile?.semester?.toString() || "1", target_branch: profile?.branch || "CSE-AI" });
+      setUploadData({ name: "", code: "", type: "Notes", title: "", link: "", target_semester: profile?.semester?.toString() || "1", target_branch: profile?.branch || "Common First Year" });
       fetchData();
     }
   };
@@ -173,11 +175,16 @@ export default function Dashboard() {
   const handleCompleteProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!/^\d{12}$/.test(step2Data.rollNo)) return toast.error("Roll Number must be exactly 12 digits.");
-    const finalBranch = step2Data.branch === "Other" ? step2Data.customBranch : step2Data.branch;
-    if (step2Data.branch === "Other" && !step2Data.customBranch) return toast.error("Specify custom branch.");
+
+    const isFirstYear = step2Data.semester === "1" || step2Data.semester === "2";
+    const finalBranch = isFirstYear ? "Common First Year" : (step2Data.branch === "Other" ? step2Data.customBranch : step2Data.branch);
+
+    if (!isFirstYear && step2Data.branch === "Other" && !step2Data.customBranch) return toast.error("Specify custom branch.");
+
     const loadingToast = toast.loading("Updating profile...");
     const { data: { session } } = await supabase.auth.getSession();
     const { error } = await supabase.from('profiles').update({ roll_no: step2Data.rollNo, semester: step2Data.semester, branch: finalBranch }).eq('id', session?.user.id);
+
     if (error) toast.error(error.message, { id: loadingToast });
     else { toast.success("Profile Complete. Welcome to the Vault.", { id: loadingToast }); setIsProfileIncomplete(false); fetchData(); }
   };
@@ -226,11 +233,25 @@ export default function Dashboard() {
                 <form onSubmit={handleCompleteProfile} className="space-y-4">
                   <input type="text" placeholder="Roll Number (12 Digits)" required value={step2Data.rollNo} onChange={e => setStep2Data({ ...step2Data, rollNo: e.target.value })} className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none text-gray-900 dark:text-white" />
                   <div className="grid grid-cols-2 gap-4">
-                    <select value={step2Data.semester} onChange={e => setStep2Data({ ...step2Data, semester: e.target.value })} className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none text-gray-900 dark:text-gray-300">
+                    <select value={step2Data.semester} onChange={e => {
+                      const sem = e.target.value;
+                      setStep2Data({
+                        ...step2Data,
+                        semester: sem,
+                        branch: (sem === "1" || sem === "2") ? "Common First Year" : (step2Data.branch === "Common First Year" ? "CSE-AI" : step2Data.branch)
+                      });
+                    }} className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none text-gray-900 dark:text-gray-300">
                       <option disabled value="">Semester</option>{[1, 2, 3, 4, 5, 6, 7, 8].map(num => <option key={num} value={num}>Sem {num}</option>)}
                     </select>
-                    <select value={step2Data.branch} onChange={e => setStep2Data({ ...step2Data, branch: e.target.value })} className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none text-gray-900 dark:text-gray-300">
-                      <option value="CSE-AI">CSE-AI</option><option value="CSE CORE-A">CSE CORE-A</option><option value="CSE CORE-B">CSE CORE-B</option><option value="CSE-CS">CSE-CS</option><option value="CSE-IoT">CSE-IoT</option><option value="Other">Other</option>
+
+                    <select disabled={step2Data.semester === "1" || step2Data.semester === "2"} value={step2Data.branch} onChange={e => setStep2Data({ ...step2Data, branch: e.target.value })} className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none text-gray-900 dark:text-gray-300 disabled:opacity-50">
+                      {(step2Data.semester === "1" || step2Data.semester === "2") ? (
+                        <option value="Common First Year">Common 1st Year</option>
+                      ) : (
+                        <>
+                          <option value="CSE-AI">CSE-AI</option><option value="CSE CORE-A">CSE CORE-A</option><option value="CSE CORE-B">CSE CORE-B</option><option value="CSE-CS">CSE-CS</option><option value="CSE-IoT">CSE-IoT</option><option value="Other">Other</option>
+                        </>
+                      )}
                     </select>
                   </div>
                   <button type="submit" className="w-full bg-black dark:bg-white text-white dark:text-black font-bold py-3 rounded-xl hover:bg-gray-800 transition-colors mt-4">Complete Profile</button>
@@ -249,13 +270,7 @@ export default function Dashboard() {
             <div className="flex items-center space-x-4 md:space-x-6">
               <span className="text-sm text-gray-600 dark:text-gray-400 hidden md:block">{profile?.full_name}</span>
               {mounted && <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-gray-600 dark:text-gray-400">{theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}</button>}
-
-              {/* ------------- GARUDA SH LINK ADDED HERE ------------- */}
-              <Link href="/garuda" className="text-sm font-mono font-bold text-blue-500 dark:text-blue-400 hover:underline transition-colors flex items-center gap-1">
-                GARUDA&lt;sh&gt;
-              </Link>
-              {/* ----------------------------------------------------- */}
-
+              <Link href="/garuda" className="text-sm font-mono font-bold text-blue-500 dark:text-blue-400 hover:underline transition-colors flex items-center gap-1">GARUDA&lt;sh&gt;</Link>
               <Link href="/profile" className="text-sm text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors">Profile</Link>
               {profile?.is_admin && <Link href="/admin" className="px-3 py-1 bg-black/5 dark:bg-white/10 text-xs rounded-full border border-black/10 dark:border-white/20 hover:bg-black/10 dark:hover:bg-white/20 transition-colors text-black dark:text-white">Admin</Link>}
               <button onClick={handleLogout} className="text-gray-600 dark:text-gray-400 hover:text-red-500 transition-colors"><LogOut className="w-5 h-5" /></button>
@@ -322,7 +337,12 @@ export default function Dashboard() {
                   <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <select
                     value={filterSemester}
-                    onChange={(e) => setFilterSemester(e.target.value)}
+                    onChange={(e) => {
+                      const sem = e.target.value;
+                      setFilterSemester(sem);
+                      if (sem === "1-2") setFilterBranch("Common First Year");
+                      else if (filterBranch === "Common First Year") setFilterBranch("All");
+                    }}
                     className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl pl-9 pr-4 py-3 appearance-none focus:outline-none focus:border-blue-500 transition-colors text-gray-900 dark:text-white text-sm font-medium"
                   >
                     <option value="All">All Semesters</option>
@@ -334,16 +354,24 @@ export default function Dashboard() {
                 <div className="relative w-full sm:w-48 flex-shrink-0">
                   <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <select
+                    disabled={filterSemester === "1-2"}
                     value={filterBranch}
                     onChange={(e) => setFilterBranch(e.target.value)}
-                    className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl pl-9 pr-4 py-3 appearance-none focus:outline-none focus:border-blue-500 transition-colors text-gray-900 dark:text-white text-sm font-medium"
+                    className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl pl-9 pr-4 py-3 appearance-none focus:outline-none focus:border-blue-500 transition-colors text-gray-900 dark:text-white text-sm font-medium disabled:opacity-50"
                   >
-                    <option value="All">All Branches</option>
-                    <option value="CSE-AI">CSE-AI</option>
-                    <option value="CSE CORE-A">CSE CORE</option>
-                    <option value="CSE-CS">CSE-CS</option>
-                    <option value="CSE-IoT">CSE-IoT</option>
-                    <option value="Other">Other</option>
+                    {filterSemester === "1-2" ? (
+                      <option value="Common First Year">Common 1st Year</option>
+                    ) : (
+                      <>
+                        <option value="All">All Branches</option>
+                        {filterSemester === "All" && <option value="Common First Year">Common 1st Year</option>}
+                        <option value="CSE-AI">CSE-AI</option>
+                        <option value="CSE CORE-A">CSE CORE</option>
+                        <option value="CSE-CS">CSE-CS</option>
+                        <option value="CSE-IoT">CSE-IoT</option>
+                        <option value="Other">Other</option>
+                      </>
+                    )}
                   </select>
                 </div>
               </div>
@@ -395,19 +423,24 @@ export default function Dashboard() {
                         <input type="text" placeholder="Code (MAT-203)" required value={uploadData.code} onChange={e => setUploadData({ ...uploadData, code: e.target.value })} className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none text-gray-900 dark:text-white" />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
-                        <select value={uploadData.target_semester} onChange={e => setUploadData({ ...uploadData, target_semester: e.target.value })} className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none text-gray-900 dark:text-gray-300">
+                        <select value={uploadData.target_semester} onChange={e => {
+                          const sem = e.target.value;
+                          setUploadData({
+                            ...uploadData,
+                            target_semester: sem,
+                            target_branch: (sem === "1" || sem === "2") ? "Common First Year" : (uploadData.target_branch === "Common First Year" ? "CSE-AI" : uploadData.target_branch)
+                          });
+                        }} className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none text-gray-900 dark:text-gray-300">
                           <option disabled value="">Semester</option>{[1, 2, 3, 4, 5, 6, 7, 8].map(num => <option key={num} value={num}>Sem {num}</option>)}
                         </select>
-                        <select
-                          value={uploadData.target_branch}
-                          onChange={e => setUploadData({ ...uploadData, target_branch: e.target.value })}
-                          className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none text-gray-900 dark:text-gray-300"
-                        >
-                          <option value="CSE-AI">CSE-AI</option>
-                          <option value="CSE CORE-A">CSE CORE</option>
-                          <option value="CSE-CS">CSE-CS</option>
-                          <option value="CSE-IoT">CSE-IoT</option>
-                          <option value="Other">Other</option>
+                        <select disabled={uploadData.target_semester === "1" || uploadData.target_semester === "2"} value={uploadData.target_branch} onChange={e => setUploadData({ ...uploadData, target_branch: e.target.value })} className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 focus:outline-none text-gray-900 dark:text-gray-300 disabled:opacity-50">
+                          {(uploadData.target_semester === "1" || uploadData.target_semester === "2") ? (
+                            <option value="Common First Year">Common 1st Year</option>
+                          ) : (
+                            <>
+                              <option value="CSE-AI">CSE-AI</option><option value="CSE CORE-A">CSE CORE</option><option value="CSE-CS">CSE-CS</option><option value="CSE-IoT">CSE-IoT</option><option value="Other">Other</option>
+                            </>
+                          )}
                         </select>
                       </div>
                     </>
@@ -429,7 +462,7 @@ export default function Dashboard() {
   );
 }
 
-// ---------------- PODIUM CARD COMPONENT (RESTORED GLOWING LIGHTS) ----------------
+// ---------------- PODIUM CARD COMPONENT ----------------
 function PodiumCard({ user, rank }: { user: any, rank: number }) {
   if (!user) return <div className="hidden" />;
 
@@ -462,38 +495,28 @@ function PodiumCard({ user, rank }: { user: any, rank: number }) {
 
   return (
     <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: rank * 0.1, ease: "easeOut" }} className={`relative overflow-hidden rounded-[2rem] p-[1.5px] flex flex-col w-full shadow-xl group transition-all duration-500 hover:-translate-y-3 hover:shadow-2xl ${heightClass} ${orderClass}`}>
-
-      {/* THE DOUBLE-LAYERED GLOW MECHANIC */}
       <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200%] h-[200%] animate-spin ${glowClass} ${syncedSpeed}`} />
       <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200%] h-[200%] animate-spin ${gradientClass} ${syncedSpeed}`} />
-
       <div className={`absolute inset-[1.5px] bg-white dark:bg-[#0c0c0c] rounded-[calc(2rem-1.5px)] z-10 transition-colors ${innerGlow} shadow-inner flex flex-col items-center justify-center overflow-hidden`}>
-
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03] dark:opacity-[0.05] group-hover:opacity-10 dark:group-hover:opacity-20 transition-all duration-700 ease-out z-0">
           <span className="text-[12rem] md:text-[14rem] font-black leading-none text-black dark:text-white scale-95 group-hover:scale-105 transition-transform duration-700 ease-out">{rank}</span>
         </div>
-
         <div className="relative z-20 flex flex-col items-center justify-center h-full p-6 text-center w-full">
-
           <Trophy className={`w-12 h-12 md:w-16 md:h-16 mb-4 ${iconColor} transform group-hover:scale-110 transition-transform duration-500`} />
-
           <h3 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white truncate w-full tracking-tight mb-1">{user.full_name?.split(" ")[0]}</h3>
-
           <p className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-6 uppercase tracking-widest">{user.branch || "Student"}</p>
-
           <div className="mt-auto flex flex-col w-full">
             <div className="w-full px-5 py-3 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 backdrop-blur-md flex items-center justify-center">
               <span className="text-lg md:text-xl font-extrabold text-gray-800 dark:text-gray-200">{user.xp_score} XP</span>
             </div>
           </div>
-
         </div>
       </div>
     </motion.div>
   );
 }
 
-// ---------------- SUBJECT CARD COMPONENT (WITH FLAGGING) ----------------
+// ---------------- SUBJECT CARD COMPONENT ----------------
 function SubjectCard({ data, bookmarks, toggleBookmark, trackClickAndOpen, userLikes, handleLike, handleFlag, rawResources }: any) {
   const [activeTab, setActiveTab] = useState<string | null>(null);
   return (
@@ -527,10 +550,8 @@ function SubjectCard({ data, bookmarks, toggleBookmark, trackClickAndOpen, userL
                       </button>
                       <div className="flex items-center justify-between mt-1">
                         <button onClick={() => handleLike(item.id)} className={`flex items-center gap-1.5 text-xs font-semibold ${isLiked ? 'text-pink-500' : 'text-gray-400'}`}><Heart className={`w-4 h-4 ${isLiked ? 'fill-pink-500' : ''}`} /> {currentItem.likes_count || 0}</button>
-
                         <div className="flex gap-1">
-                          {/* FLAG REPORT BUTTON */}
-                          <button onClick={() => handleFlag(item.id)} title="Report Broken Link" className="p-1 hover:scale-110 opacity-0 group-hover/item:opacity-100 transition-opacity"><Flag className="w-4 h-4 text-red-300 hover:text-red-500 hover:fill-red-500" /></button>
+                          <button onClick={() => handleFlag(item.id)} title="Report Broken Link" className="p-1 hover:scale-110 opacity-100 sm:opacity-0 sm:group-hover/item:opacity-100 transition-opacity"><Flag className="w-4 h-4 text-red-300 hover:text-red-500 hover:fill-red-500" /></button>
                           <button onClick={() => toggleBookmark(item.id)} className="p-1 hover:scale-110"><Star className={`w-4 h-4 ${isSaved ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} /></button>
                         </div>
                       </div>
