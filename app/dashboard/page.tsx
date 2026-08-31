@@ -4,7 +4,7 @@ import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, FileText, LogOut, Download, ExternalLink, Star, Heart, UploadCloud, Plus, X, Sun, Moon, Trophy, ArrowUp, ArrowDown, Search, Filter, Flag } from "lucide-react";
+import { BookOpen, FileText, LogOut, Download, ExternalLink, Star, Heart, UploadCloud, Plus, X, Sun, Moon, Trophy, ArrowUp, ArrowDown, Search, Filter, Flag, Terminal, MessageSquareDashed, ShieldAlert, ArrowRight, User } from "lucide-react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import ProtectedRoute from "@/app/components/ProtectedRoute";
@@ -69,6 +69,7 @@ export default function Dashboard() {
 
     if (!profileData?.roll_no || !profileData?.branch) setIsProfileIncomplete(true);
 
+    // Fetch Vault Resources
     const { data: resourceData } = await supabase.from("resources").select("*").order("created_at", { ascending: false });
     if (resourceData) {
       setRawResources(resourceData);
@@ -97,8 +98,41 @@ export default function Dashboard() {
     const { data: likesData } = await supabase.from("likes").select("resource_id").eq("user_id", session.user.id);
     if (likesData) setUserLikes(likesData.map(l => l.resource_id));
 
+    // --- ALGORITHM FUSION: MERGE GARUDA XP + VAULT XP ---
     const { data: leaderboardData } = await supabase.rpc('get_leaderboard');
-    if (leaderboardData) setLeaderboard(leaderboardData);
+    const { data: allProfiles } = await supabase.from('profiles').select('id, full_name, branch, xp_score');
+
+    if (allProfiles) {
+      let unifiedLeaderboard = allProfiles.map(prof => {
+        // Find Vault XP from the RPC
+        const vaultEntry = (leaderboardData || []).find((u: any) => u.id === prof.id || u.user_id === prof.id || u.full_name === prof.full_name);
+        const vaultXp = vaultEntry ? Number(vaultEntry.xp_score || 0) : 0;
+
+        // Find Garuda XP from Profile
+        const garudaXp = Number(prof.xp_score || 0);
+
+        // Mathematically Combine Both
+        const totalXp = vaultXp + garudaXp;
+
+        return {
+          id: prof.id,
+          user_id: prof.id,
+          full_name: prof.full_name || vaultEntry?.full_name || "Unknown Hacker",
+          branch: prof.branch || vaultEntry?.branch || "Student",
+          xp_score: totalXp
+        };
+      });
+
+      // Filter out 0 XP ghosts and re-rank everyone correctly
+      unifiedLeaderboard = unifiedLeaderboard.filter(u => u.xp_score > 0);
+      unifiedLeaderboard.sort((a, b) => b.xp_score - a.xp_score);
+      unifiedLeaderboard = unifiedLeaderboard.map((u, index) => ({
+        ...u,
+        rank: index + 1
+      }));
+
+      setLeaderboard(unifiedLeaderboard);
+    }
   }
 
   const handleLogout = async () => {
@@ -192,6 +226,11 @@ export default function Dashboard() {
   const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
   const scrollToBottom = () => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
 
+  const scrollToVault = () => {
+    const vaultSection = document.getElementById("vault-section");
+    if (vaultSection) vaultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   const pinnedResources = rawResources.filter(res => bookmarks.includes(res.id) && (res.flags_count || 0) < 3);
 
   const filteredSubjects = groupedResources.filter(sub => {
@@ -206,12 +245,21 @@ export default function Dashboard() {
   const rank3 = leaderboard.find(u => Number(u.rank) === 3);
   const podiumUsers = [rank1, rank2, rank3].filter(Boolean);
 
+  // Sync the Hero XP with the combined Leaderboard XP calculation
+  const currentUserLeaderboardEntry = leaderboard.find((u: any) => u.id === profile?.id || u.user_id === profile?.id || u.full_name === profile?.full_name);
+  const displayXp = currentUserLeaderboardEntry?.xp_score || profile?.xp_score || 0;
+
   const isAtTop = scrollY < 200;
   const isAtBottom = typeof window !== 'undefined' && (window.innerHeight + scrollY >= document.body.offsetHeight - 200);
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#0a0a0a] text-black dark:text-white font-sans relative transition-colors duration-300 pb-20">
+      <div className="min-h-screen bg-[#FAFAFA] dark:bg-[#050505] text-black dark:text-white font-sans relative transition-colors duration-300 pb-20">
+
+        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+          <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-blue-500/10 dark:bg-blue-600/5 blur-[120px] rounded-full mix-blend-screen" />
+          <div className="absolute top-[20%] -right-[10%] w-[30%] h-[50%] bg-purple-500/10 dark:bg-purple-600/5 blur-[120px] rounded-full mix-blend-screen" />
+        </div>
 
         <div className="fixed bottom-6 right-6 z-40 flex flex-col gap-3">
           <AnimatePresence>
@@ -261,34 +309,35 @@ export default function Dashboard() {
           )}
         </AnimatePresence>
 
-        <nav className="border-b border-black/10 dark:border-white/10 bg-white/70 dark:bg-black/40 backdrop-blur-xl sticky top-0 z-40 transition-colors duration-300">
+        <nav className="border-b border-black/10 dark:border-white/5 bg-white/70 dark:bg-black/40 backdrop-blur-xl sticky top-0 z-40 transition-colors duration-300 relative">
           <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-            <Link href="/dashboard" className="flex items-center hover:opacity-80 transition-opacity">
+            <Link href="/" className="flex items-center hover:opacity-80 transition-opacity">
               <Logo className="w-24 md:w-28 text-black dark:text-white" />
             </Link>
 
             <div className="flex items-center space-x-4 md:space-x-6">
-              <span className="text-sm text-gray-600 dark:text-gray-400 hidden md:block">{profile?.full_name}</span>
               {mounted && <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-gray-600 dark:text-gray-400">{theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}</button>}
-              <Link href="/garuda" className="text-sm font-mono font-bold text-blue-500 dark:text-blue-400 hover:underline transition-colors flex items-center gap-1">GARUDA&lt;sh&gt;</Link>
-              <Link href="/profile" className="text-sm text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors">Profile</Link>
-              {profile?.is_admin && <Link href="/admin" className="px-3 py-1 bg-black/5 dark:bg-white/10 text-xs rounded-full border border-black/10 dark:border-white/20 hover:bg-black/10 dark:hover:bg-white/20 transition-colors text-black dark:text-white">Admin</Link>}
               <button onClick={handleLogout} className="text-gray-600 dark:text-gray-400 hover:text-red-500 transition-colors"><LogOut className="w-5 h-5" /></button>
             </div>
           </div>
         </nav>
 
-        <main className="max-w-7xl mx-auto px-4 md:px-6 py-12">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6">
-            <div>
-              <h1 className="text-3xl md:text-4xl font-bold mb-2 text-gray-900 dark:text-white">Welcome back, {profile?.full_name?.split(" ")[0]}</h1>
-              <p className="text-gray-600 dark:text-gray-400">Your curated Gurugram University materials.</p>
+        <main className="max-w-7xl mx-auto px-4 md:px-6 py-12 relative z-10">
+
+          <div className="flex flex-col mb-12 gap-2">
+            <h1 className="text-4xl md:text-5xl font-black text-gray-900 dark:text-white tracking-tight">
+              Welcome back, {profile?.full_name?.split(" ")[0]}
+            </h1>
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest">{profile?.branch || "Student"}</span>
+              <span className="px-2 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/20 text-blue-500 dark:text-blue-400 font-mono text-xs font-bold shadow-[0_0_10px_rgba(59,130,246,0.15)]">
+                {displayXp} XP
+              </span>
             </div>
-            <button onClick={() => setIsUploadModalOpen(true)} className="flex items-center gap-2 bg-black dark:bg-white text-white dark:text-black px-6 py-3 rounded-xl font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors shadow-lg dark:shadow-none w-full md:w-auto justify-center"><UploadCloud className="w-5 h-5" /> Contribute Material</button>
           </div>
 
-          <div className="mb-16 mt-8">
-            <div className="flex items-center justify-between mb-10">
+          <div className="mb-16">
+            <div className="flex items-center justify-between mb-8">
               <h2 className="text-xl font-bold flex items-center gap-2 text-gray-800 dark:text-white"><Trophy className="w-6 h-6 text-yellow-500" /> Hall of Fame</h2>
               <span className="text-xs text-gray-500 uppercase tracking-widest font-bold hidden sm:block">Top Contributors</span>
             </div>
@@ -297,102 +346,196 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {pinnedResources.length > 0 && (
-            <div className="mb-16">
-              <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-gray-800 dark:text-white"><Star className="w-5 h-5 text-yellow-500 fill-yellow-500" /> Saved for Later</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {pinnedResources.map(item => (
-                  <div key={`pinned-${item.id}`} className="bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 p-4 rounded-2xl flex items-center justify-between shadow-sm transition-colors group">
-                    <div>
-                      <p className="text-xs text-blue-500 dark:text-gray-500 font-bold mb-1">{item.subject_code} • {item.resource_type}</p>
-                      <p className="text-sm font-medium text-gray-800 dark:text-white">{item.title}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={() => trackClickAndOpen(item.id, item.drive_link)} className="p-2 bg-gray-100 dark:bg-white/10 rounded-lg hover:bg-gray-200 transition-colors"><ExternalLink className="w-4 h-4 text-gray-600 dark:text-white" /></button>
-                      <button onClick={() => toggleBookmark(item.id)} className="p-2 bg-yellow-50 dark:bg-yellow-500/10 rounded-lg transition-colors"><Star className="w-4 h-4 text-yellow-500 fill-yellow-500" /></button>
-                    </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-20">
+
+            <div onClick={scrollToVault} className="lg:col-span-2 group cursor-pointer relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-white to-gray-50 dark:from-white/5 dark:to-white/[0.02] border border-gray-200 dark:border-white/10 p-8 shadow-sm hover:shadow-xl dark:hover:shadow-[0_0_40px_rgba(255,255,255,0.05)] transition-all duration-500">
+              <div className="absolute top-0 right-0 p-8 opacity-20 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700 ease-out transform translate-x-4 -translate-y-4">
+                <BookOpen className="w-32 h-32 text-gray-300 dark:text-white/10" />
+              </div>
+              <div className="relative z-10 h-full flex flex-col justify-between min-h-[160px]">
+                <div>
+                  <div className="w-12 h-12 rounded-2xl bg-black/5 dark:bg-white/10 flex items-center justify-center mb-4">
+                    <BookOpen className="w-6 h-6 text-gray-800 dark:text-white" />
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="mb-10">
-            <h2 className="text-xl font-bold mb-6 text-gray-800 dark:text-gray-300">Vault Resources</h2>
-            <div className="bg-white dark:bg-[#121212] p-4 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm flex flex-col md:flex-row gap-4">
-
-              <div className="relative flex-1">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search by subject name or code (e.g., Physics, MAT-203)..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:border-blue-500 transition-colors text-gray-900 dark:text-white"
-                />
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
-                <div className="relative w-full sm:w-52 flex-shrink-0">
-                  <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <select
-                    value={filterSemester}
-                    onChange={(e) => {
-                      const sem = e.target.value;
-                      setFilterSemester(sem);
-                      if (sem === "1-2") setFilterBranch("Common First Year");
-                      else if (filterBranch === "Common First Year") setFilterBranch("All");
-                    }}
-                    className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl pl-9 pr-4 py-3 appearance-none focus:outline-none focus:border-blue-500 transition-colors text-gray-900 dark:text-white text-sm font-medium"
-                  >
-                    <option value="All">All Semesters</option>
-                    <option value="1-2">Sem 1 & 2 (1st Year)</option>
-                    {[3, 4, 5, 6, 7, 8].map(n => <option key={`sem-filter-${n}`} value={n.toString()}>Sem {n}</option>)}
-                  </select>
+                  <h2 className="text-2xl font-black text-gray-900 dark:text-white mb-2">The Vault</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 max-w-[200px]">Access peer-curated notes, assignments, and historical PYQs.</p>
                 </div>
-
-                <div className="relative w-full sm:w-48 flex-shrink-0">
-                  <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <select
-                    disabled={filterSemester === "1-2"}
-                    value={filterBranch}
-                    onChange={(e) => setFilterBranch(e.target.value)}
-                    className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl pl-9 pr-4 py-3 appearance-none focus:outline-none focus:border-blue-500 transition-colors text-gray-900 dark:text-white text-sm font-medium disabled:opacity-50"
-                  >
-                    {filterSemester === "1-2" ? (
-                      <option value="Common First Year">Common 1st Year</option>
-                    ) : (
-                      <>
-                        <option value="All">All Branches</option>
-                        {filterSemester === "All" && <option value="Common First Year">Common 1st Year</option>}
-                        <option value="CSE-AI">CSE-AI</option>
-                        <option value="CSE CORE-A">CSE CORE</option>
-                        <option value="CSE-CS">CSE-CS</option>
-                        <option value="CSE-IoT">CSE-IoT</option>
-                        <option value="Other">Other</option>
-                      </>
-                    )}
-                  </select>
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-gray-900 dark:text-white mt-8 group-hover:translate-x-2 transition-transform duration-300">
+                  Access Matrix <ArrowDown className="w-4 h-4" />
                 </div>
               </div>
-
             </div>
+
+            <Link href="/garuda" className="group cursor-pointer relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-[#0a1128] dark:to-[#040814] border border-blue-200/50 dark:border-blue-500/20 p-8 shadow-sm hover:shadow-xl dark:hover:shadow-[0_0_40px_rgba(59,130,246,0.15)] transition-all duration-500">
+              <div className="absolute top-0 right-0 w-full h-full bg-blue-500/5 dark:bg-blue-500/10 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+              <div className="relative z-10 h-full flex flex-col justify-between min-h-[160px]">
+                <div>
+                  <div className="w-12 h-12 rounded-2xl bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center mb-4">
+                    <Terminal className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <h2 className="text-2xl font-black text-gray-900 dark:text-white font-mono tracking-tighter mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">GARUDA<span className="font-normal text-blue-500">&lt;sh&gt;</span></h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">The OPPE execution arena. Compile, execute, and conquer.</p>
+                </div>
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 mt-8 group-hover:translate-x-2 transition-transform duration-300">
+                  Initialize Engine <ArrowRight className="w-4 h-4" />
+                </div>
+              </div>
+            </Link>
+
+            <Link href="/cjd" className="group cursor-pointer relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-gray-50 to-gray-100 dark:from-[#111] dark:to-[#050505] border border-gray-200 dark:border-white/10 p-8 shadow-sm hover:shadow-xl dark:hover:shadow-[0_0_40px_rgba(255,255,255,0.05)] transition-all duration-500">
+              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-0 group-hover:opacity-20 dark:group-hover:opacity-30 transition-opacity duration-700 mix-blend-overlay" />
+              <div className="relative z-10 h-full flex flex-col justify-between min-h-[160px]">
+                <div>
+                  <div className="w-12 h-12 rounded-2xl bg-gray-200 dark:bg-white/10 flex items-center justify-center mb-4 group-hover:rotate-12 transition-transform duration-500">
+                    <MessageSquareDashed className="w-6 h-6 text-gray-700 dark:text-white" />
+                  </div>
+                  <h2 className="text-xl font-black text-gray-900 dark:text-white tracking-widest mb-2">CHHODO JAANE DO <span className="text-blue-500">;</span></h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Anonymous campus intel. Release thoughts to the void.</p>
+                </div>
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-gray-900 dark:text-white mt-8 group-hover:translate-x-2 transition-transform duration-300">
+                  Enter Network <ArrowRight className="w-4 h-4" />
+                </div>
+              </div>
+            </Link>
+
+            <Link href="/profile" className="group cursor-pointer relative overflow-hidden rounded-[2rem] bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 p-6 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors duration-300">
+              <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-black/50 flex items-center justify-center shrink-0">
+                <User className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 dark:text-white">Profile</h3>
+                <p className="text-xs text-gray-500">Manage identity</p>
+              </div>
+            </Link>
+
+            {profile?.is_admin && (
+              <Link href="/admin" className="group cursor-pointer relative overflow-hidden rounded-[2rem] bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 p-6 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors duration-300">
+                <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-black/50 flex items-center justify-center shrink-0">
+                  <ShieldAlert className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900 dark:text-white">Admin HQ</h3>
+                  <p className="text-xs text-gray-500">System controls</p>
+                </div>
+              </Link>
+            )}
+
+            <div onClick={() => setIsUploadModalOpen(true)} className={`${profile?.is_admin ? 'md:col-span-2' : 'md:col-span-3'} lg:col-span-2 group cursor-pointer relative overflow-hidden rounded-[2rem] bg-gray-900 dark:bg-white text-white dark:text-black p-6 flex items-center justify-between hover:scale-[1.02] transition-transform duration-300 shadow-xl`}>
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-white/10 dark:bg-black/5 flex items-center justify-center shrink-0">
+                  <UploadCloud className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black tracking-wide">Contribute Material</h3>
+                  <p className="text-xs opacity-80">Upload notes, PYQs, and assignments to the Vault.</p>
+                </div>
+              </div>
+              <div className="w-10 h-10 rounded-full border border-white/20 dark:border-black/20 flex items-center justify-center group-hover:bg-white dark:group-hover:bg-black group-hover:text-black dark:group-hover:text-white transition-colors">
+                <Plus className="w-5 h-5" />
+              </div>
+            </div>
+
           </div>
 
-          <motion.div initial="hidden" animate="visible" variants={{ hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.05 } } }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <AnimatePresence>
-              {filteredSubjects.length === 0 ? (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="col-span-full flex flex-col items-center justify-center py-20 opacity-50">
-                  <svg width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="mb-4 text-gray-400"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" /><path d="M8 7h8" /><path d="M8 11h8" /></svg>
-                  <p className="text-gray-500 text-lg font-medium">No subjects match your filters.</p>
-                </motion.div>
-              ) : (
-                filteredSubjects.map((subjectData, index) => (
-                  <SubjectCard key={subjectData.subject_code} data={subjectData} index={index} bookmarks={bookmarks} toggleBookmark={toggleBookmark} trackClickAndOpen={trackClickAndOpen} userLikes={userLikes} handleLike={handleLike} handleFlag={handleFlag} rawResources={rawResources} />
-                ))
-              )}
-            </AnimatePresence>
-          </motion.div>
+          {/* --- THE VAULT SECTION --- */}
+          <div id="vault-section" className="pt-8 border-t border-gray-200 dark:border-white/10">
+            {pinnedResources.length > 0 && (
+              <div className="mb-16">
+                <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-gray-800 dark:text-white"><Star className="w-5 h-5 text-yellow-500 fill-yellow-500" /> Saved for Later</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {pinnedResources.map(item => (
+                    <div key={`pinned-${item.id}`} className="bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 p-4 rounded-2xl flex items-center justify-between shadow-sm transition-colors group">
+                      <div>
+                        <p className="text-xs text-blue-500 dark:text-gray-500 font-bold mb-1">{item.subject_code} • {item.resource_type}</p>
+                        <p className="text-sm font-medium text-gray-800 dark:text-white">{item.title}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => trackClickAndOpen(item.id, item.drive_link)} className="p-2 bg-gray-100 dark:bg-white/10 rounded-lg hover:bg-gray-200 transition-colors"><ExternalLink className="w-4 h-4 text-gray-600 dark:text-white" /></button>
+                        <button onClick={() => toggleBookmark(item.id)} className="p-2 bg-yellow-50 dark:bg-yellow-500/10 rounded-lg transition-colors"><Star className="w-4 h-4 text-yellow-500 fill-yellow-500" /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mb-10">
+              <h2 className="text-xl font-bold mb-6 text-gray-800 dark:text-gray-300">Vault Resources</h2>
+              <div className="bg-white dark:bg-[#121212] p-4 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm flex flex-col md:flex-row gap-4">
+
+                <div className="relative flex-1">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by subject name or code (e.g., Physics, MAT-203)..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:border-blue-500 transition-colors text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+                  <div className="relative w-full sm:w-52 flex-shrink-0">
+                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <select
+                      value={filterSemester}
+                      onChange={(e) => {
+                        const sem = e.target.value;
+                        setFilterSemester(sem);
+                        if (sem === "1-2") setFilterBranch("Common First Year");
+                        else if (filterBranch === "Common First Year") setFilterBranch("All");
+                      }}
+                      className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl pl-9 pr-4 py-3 appearance-none focus:outline-none focus:border-blue-500 transition-colors text-gray-900 dark:text-white text-sm font-medium"
+                    >
+                      <option value="All">All Semesters</option>
+                      <option value="1-2">Sem 1 & 2 (1st Year)</option>
+                      {[3, 4, 5, 6, 7, 8].map(n => <option key={`sem-filter-${n}`} value={n.toString()}>Sem {n}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="relative w-full sm:w-48 flex-shrink-0">
+                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <select
+                      disabled={filterSemester === "1-2"}
+                      value={filterBranch}
+                      onChange={(e) => setFilterBranch(e.target.value)}
+                      className="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl pl-9 pr-4 py-3 appearance-none focus:outline-none focus:border-blue-500 transition-colors text-gray-900 dark:text-white text-sm font-medium disabled:opacity-50"
+                    >
+                      {filterSemester === "1-2" ? (
+                        <option value="Common First Year">Common 1st Year</option>
+                      ) : (
+                        <>
+                          <option value="All">All Branches</option>
+                          {filterSemester === "All" && <option value="Common First Year">Common 1st Year</option>}
+                          <option value="CSE-AI">CSE-AI</option>
+                          <option value="CSE CORE-A">CSE CORE</option>
+                          <option value="CSE-CS">CSE-CS</option>
+                          <option value="CSE-IoT">CSE-IoT</option>
+                          <option value="Other">Other</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <motion.div initial="hidden" animate="visible" variants={{ hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.05 } } }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <AnimatePresence>
+                {filteredSubjects.length === 0 ? (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="col-span-full flex flex-col items-center justify-center py-20 opacity-50">
+                    <svg width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="mb-4 text-gray-400"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" /><path d="M8 7h8" /><path d="M8 11h8" /></svg>
+                    <p className="text-gray-500 text-lg font-medium">No subjects match your filters.</p>
+                  </motion.div>
+                ) : (
+                  filteredSubjects.map((subjectData, index) => (
+                    <SubjectCard key={subjectData.subject_code} data={subjectData} index={index} bookmarks={bookmarks} toggleBookmark={toggleBookmark} trackClickAndOpen={trackClickAndOpen} userLikes={userLikes} handleLike={handleLike} handleFlag={handleFlag} rawResources={rawResources} />
+                  ))
+                )}
+              </AnimatePresence>
+            </motion.div>
+          </div>
         </main>
 
         <AnimatePresence>

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
-import { ShieldCheck, Plus, UploadCloud, Trash2, FileText, Check, X, Eye, ChevronDown, Edit2, Save, ArrowLeft, Flag, Zap, Box, Terminal, Layers3, Code2, BookOpen, Key, Copy, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { ShieldCheck, Plus, UploadCloud, Trash2, FileText, Check, X, Eye, ChevronDown, Edit2, Save, ArrowLeft, Flag, Zap, Box, Terminal, Layers3, Code2, BookOpen, Key, Copy, CheckCircle2, XCircle, Loader2, MessageSquareDashed, Share2, Ghost, Clock } from "lucide-react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { useTheme } from "next-themes";
@@ -11,7 +11,7 @@ import { Sun, Moon } from "lucide-react";
 import ProtectedRoute from "@/app/components/ProtectedRoute";
 import ShimmerText from "@/app/components/ShimmerText";
 
-type MainTab = "vault" | "garuda" | "keys";
+type MainTab = "vault" | "garuda" | "keys" | "cjd";
 
 const PISTON_RUNTIMES = [
   { name: "Python 3", slug: "python", icon_url: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/python/python-original.svg" },
@@ -52,6 +52,12 @@ export default function AdminPortal() {
   const [accessKeys, setAccessKeys] = useState<any[]>([]);
   const [isKeysLoading, setIsKeysLoading] = useState(true);
   const [isForging, setIsForging] = useState(false);
+  const [customKey, setCustomKey] = useState(""); // <-- NEW: Custom Key State
+
+  const [pendingCjdPosts, setPendingCjdPosts] = useState<any[]>([]);
+  const [liveCjdPosts, setLiveCjdPosts] = useState<any[]>([]);
+  const [cjdTab, setCjdTab] = useState<"pending" | "live">("pending");
+  const [adminReplies, setAdminReplies] = useState<Record<string, string>>({});
 
   const [isArenaModalOpen, setIsArenaModalOpen] = useState(false);
   const [activeArenaLang, setActiveArenaLang] = useState<any>(null);
@@ -67,7 +73,21 @@ export default function AdminPortal() {
     fetchVaultData();
     fetchGarudaData();
     fetchKeys();
+    fetchCjdData();
   }, []);
+
+  async function fetchCjdData() {
+    const { data, error } = await supabase
+      .from("cjd_posts")
+      .select("*, profiles(full_name, branch)")
+      .gt("expires_at", new Date().toISOString())
+      .order("created_at", { ascending: true });
+
+    if (data) {
+      setPendingCjdPosts(data.filter(p => !p.is_approved));
+      setLiveCjdPosts(data.filter(p => p.is_approved));
+    }
+  }
 
   async function fetchKeys() {
     setIsKeysLoading(true);
@@ -110,14 +130,54 @@ export default function AdminPortal() {
     if (langData) setGarudaLanguages(langData);
   }
 
+  const approveCjdPost = async (id: string, isCodeRed: boolean) => {
+    const loadingToast = toast.loading("Approving transmission...");
+    const reply = adminReplies[id] || null;
+    const { error } = await supabase.from("cjd_posts").update({ is_approved: true, admin_reply: reply }).eq("id", id);
+
+    if (error) {
+      toast.error("Failed to approve.", { id: loadingToast });
+    } else {
+      toast.success("Post is now live.", { id: loadingToast });
+      fetchCjdData();
+
+      if (isCodeRed) triggerWhatsAppBlast(id, reply);
+    }
+  };
+
+  const triggerWhatsAppBlast = (id: string, reply: string | null = null) => {
+    const post = pendingCjdPosts.find(p => p.id === id) || liveCjdPosts.find(p => p.id === id);
+    if (!post) return;
+
+    let text = `🚨 *EXAMS COMMUNITY UPDATE* 🚨\n\n"${post.content}"\n`;
+    if (reply || post.admin_reply) text += `\n🛡️ *Admin Verified:* ${reply || post.admin_reply}\n`;
+    text += `\n_Join the network at exams-community.vercel.app/cjd_`;
+    const encoded = encodeURIComponent(text);
+    window.open(`https://api.whatsapp.com/send?text=${encoded}`, "_blank");
+  };
+
+  const rejectCjdPost = async (id: string) => {
+    const loadingToast = toast.loading("Scrubbing from database...");
+    const { error } = await supabase.from("cjd_posts").delete().eq("id", id);
+    if (error) toast.error("Failed to delete.", { id: loadingToast });
+    else { toast.success("Scrubbed.", { id: loadingToast }); fetchCjdData(); }
+  };
+
+  // --- NEW: Universal Custom Key Forge Logic ---
   const forgeNewKey = async () => {
     setIsForging(true);
-    const randomPart1 = Math.random().toString(36).substring(2, 6).toUpperCase();
-    const randomPart2 = Math.random().toString(36).substring(2, 6).toUpperCase();
-    const newKeyCode = `GRD-${randomPart1}-${randomPart2}`;
-    const { error } = await supabase.from("garuda_invites").insert([{ code: newKeyCode }]);
-    if (error) toast.error(`Database Error: ${error.message}`);
-    else { toast.success(`Key ${newKeyCode} forged securely!`, { icon: '🔐' }); fetchKeys(); }
+    // Use custom key if typed, otherwise generate a secure NEXUS random key
+    const finalKey = customKey.trim() || `NEXUS-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+
+    const { error } = await supabase.from("garuda_invites").insert([{ code: finalKey }]);
+    if (error) {
+      if (error.code === '23505') toast.error("This exact key already exists!");
+      else toast.error(`Database Error: ${error.message}`);
+    } else {
+      toast.success(`Key ${finalKey} forged securely!`, { icon: '🔐' });
+      setCustomKey("");
+      fetchKeys();
+    }
     setIsForging(false);
   };
 
@@ -289,17 +349,17 @@ export default function AdminPortal() {
             <p className="text-gray-500 text-sm">Manage the EXAMS community vault and the GARUDA coding arena.</p>
           </div>
 
-          <div className="flex bg-gray-100 dark:bg-black/50 rounded-2xl p-1.5 mb-12 max-w-xl mx-auto md:mx-0 overflow-x-auto custom-scrollbar">
+          <div className="flex bg-gray-100 dark:bg-black/50 rounded-2xl p-1.5 mb-12 max-w-2xl mx-auto md:mx-0 overflow-x-auto custom-scrollbar">
             <button onClick={() => setActiveMainTab("vault")} className={`flex-1 min-w-[120px] flex items-center justify-center gap-2.5 py-3 rounded-xl transition-all ${activeMainTab === "vault" ? "bg-white dark:bg-white/10 font-bold shadow-sm dark:shadow-none text-blue-500 dark:text-white" : "text-gray-500 hover:text-gray-900 dark:hover:text-gray-300"}`}><Box className="w-4 h-4" /> Vault HQ</button>
             <button onClick={() => setActiveMainTab("garuda")} className={`flex-1 min-w-[120px] flex items-center justify-center gap-2.5 py-3 rounded-xl transition-all ${activeMainTab === "garuda" ? "bg-white dark:bg-white/10 font-bold shadow-sm dark:shadow-none text-blue-500 dark:text-white" : "text-gray-500 hover:text-gray-900 dark:hover:text-gray-300"}`}><Terminal className="w-4 h-4" /> GARUDA HQ</button>
             <button onClick={() => setActiveMainTab("keys")} className={`flex-1 min-w-[120px] flex items-center justify-center gap-2.5 py-3 rounded-xl transition-all ${activeMainTab === "keys" ? "bg-white dark:bg-white/10 font-bold shadow-sm dark:shadow-none text-blue-500 dark:text-white" : "text-gray-500 hover:text-gray-900 dark:hover:text-gray-300"}`}><Key className="w-4 h-4" /> Key Forge</button>
+            <button onClick={() => setActiveMainTab("cjd")} className={`flex-1 min-w-[120px] flex items-center justify-center gap-2.5 py-3 rounded-xl transition-all ${activeMainTab === "cjd" ? "bg-white dark:bg-white/10 font-bold shadow-sm dark:shadow-none text-blue-500 dark:text-white" : "text-gray-500 hover:text-gray-900 dark:hover:text-gray-300"}`}><MessageSquareDashed className="w-4 h-4" /> CJD Queue</button>
           </div>
 
           <AnimatePresence mode="wait">
+            {/* VAULT HQ */}
             {activeMainTab === "vault" && (
               <motion.div key="vault-tab" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-
-                {/* ---------- VAULT PENDING QUEUE ---------- */}
                 {pendingResources.length > 0 && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mb-12">
                     <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-yellow-600 dark:text-yellow-500"><Check className="w-5 h-5" /> Pending Approvals ({pendingResources.length})</h2>
@@ -324,7 +384,6 @@ export default function AdminPortal() {
                 )}
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                  {/* ---------- VAULT UPLOAD ---------- */}
                   <div className="lg:col-span-4 space-y-6">
                     <div className="bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 p-6 rounded-3xl shadow-sm">
                       <h2 className="text-xl font-semibold mb-6 flex items-center gap-2 text-gray-900 dark:text-white"><UploadCloud className="w-5 h-5 text-gray-400" /> Direct Upload</h2>
@@ -339,7 +398,6 @@ export default function AdminPortal() {
                     </div>
                   </div>
 
-                  {/* ---------- VAULT LIVE ORG ---------- */}
                   <div className="lg:col-span-8">
                     <div className="bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 p-6 md:p-8 rounded-3xl shadow-sm min-h-[600px]">
                       <h2 className="text-xl font-semibold mb-6 flex items-center gap-2 text-gray-900 dark:text-white"><FileText className="w-5 h-5 text-gray-400" /> Live Vault Organization</h2>
@@ -360,7 +418,6 @@ export default function AdminPortal() {
                                         <div className="space-y-2">
                                           {subject[type].map((item: any) => (
                                             <div key={item.id}>
-                                              {/* INLINE DEEP EDITING FOR LIVE VAULT */}
                                               {editingId === item.id ? renderEditForm() : (
                                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-white dark:bg-black/60 p-3 rounded-xl border border-gray-200 dark:border-white/5 gap-2">
                                                   <a href={item.drive_link} target="_blank" className="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white truncate flex-1">{item.title}</a>
@@ -390,7 +447,7 @@ export default function AdminPortal() {
               </motion.div>
             )}
 
-            {/* GARUDA AND KEY FORGE TABS REMAIN UNCHANGED BELOW */}
+            {/* GARUDA HQ */}
             {activeMainTab === "garuda" && (
               <motion.div key="garuda-tab" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="grid grid-cols-1 lg:grid-cols-12 gap-8 relative">
                 <div className="lg:col-span-4 space-y-6">
@@ -471,12 +528,30 @@ export default function AdminPortal() {
               </motion.div>
             )}
 
+            {/* KEY FORGE HQ */}
             {activeMainTab === "keys" && (
               <motion.div key="keys-tab" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
                 <div className="bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-3xl p-6 md:p-8 shadow-sm">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 border-b border-gray-200 dark:border-white/10 pb-6">
-                    <div><h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><Key className="w-5 h-5 text-blue-500" /> The Key Forge</h2><p className="text-sm text-gray-500 mt-1">Generate single-use access codes for student enrollment.</p></div>
-                    <button onClick={forgeNewKey} disabled={isForging} className="bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 px-6 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-500/20">{isForging ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}FORGE NEW KEY</button>
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <Key className="w-5 h-5 text-blue-500" /> Universal Key Forge
+                      </h2>
+                      <p className="text-sm text-gray-500 mt-1">Generate single-use access codes for GARUDA&lt;sh&gt; and CHHODO JAANE DO ;)</p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+                      <input
+                        type="text"
+                        placeholder="Custom Key (Optional)"
+                        value={customKey}
+                        onChange={(e) => setCustomKey(e.target.value.toUpperCase().replace(/\s+/g, '-'))}
+                        className="w-full sm:w-56 bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 text-gray-900 dark:text-white uppercase font-mono"
+                      />
+                      <button onClick={forgeNewKey} disabled={isForging} className="w-full sm:w-auto bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 px-6 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-500/20 whitespace-nowrap">
+                        {isForging ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                        FORGE KEY
+                      </button>
+                    </div>
                   </div>
                   {isKeysLoading ? (
                     <div className="flex items-center justify-center py-12 text-blue-500"><Loader2 className="w-8 h-8 animate-spin" /></div>
@@ -488,8 +563,8 @@ export default function AdminPortal() {
                         <div key={k.code} className="bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/5 rounded-2xl p-5 flex flex-col justify-between relative overflow-hidden group">
                           <div className={`absolute top-0 left-0 w-1 h-full ${k.is_used ? "bg-red-500" : "bg-green-500"}`} />
                           <div className="flex justify-between items-start mb-4 pl-2">
-                            <div><div className="text-[10px] font-bold tracking-widest text-gray-400 mb-1">ACCESS CODE</div><div className="font-mono text-lg font-bold text-gray-900 dark:text-white tracking-wider">{k.code}</div></div>
-                            {!k.is_used && <button onClick={() => copyToClipboard(k.code)} className="text-gray-400 hover:text-blue-500 transition-colors bg-white dark:bg-white/5 p-2 rounded-lg border border-gray-200 dark:border-white/10"><Copy className="w-4 h-4" /></button>}
+                            <div><div className="text-[10px] font-bold tracking-widest text-gray-400 mb-1">ACCESS CODE</div><div className="font-mono text-lg font-bold text-gray-900 dark:text-white tracking-wider truncate w-40" title={k.code}>{k.code}</div></div>
+                            {!k.is_used && <button onClick={() => copyToClipboard(k.code)} className="text-gray-400 hover:text-blue-500 transition-colors bg-white dark:bg-white/5 p-2 rounded-lg border border-gray-200 dark:border-white/10 shrink-0"><Copy className="w-4 h-4" /></button>}
                           </div>
                           <div className="flex items-center justify-between pl-2 mt-2 pt-4 border-t border-gray-200 dark:border-white/5">
                             <div className="flex items-center gap-1.5 text-xs font-bold">{k.is_used ? <span className="flex items-center gap-1 text-red-500 dark:text-red-400"><XCircle className="w-3.5 h-3.5" /> CLAIMED</span> : <span className="flex items-center gap-1 text-green-500 dark:text-green-400"><CheckCircle2 className="w-3.5 h-3.5" /> AVAILABLE</span>}</div>
@@ -502,6 +577,133 @@ export default function AdminPortal() {
                 </div>
               </motion.div>
             )}
+
+            {/* --- CJD QUEUE --- */}
+            {activeMainTab === "cjd" && (
+              <motion.div key="cjd-tab" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                <div className="mb-12">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-bold flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                      <MessageSquareDashed className="w-5 h-5" /> Broadcast Network
+                    </h2>
+                  </div>
+
+                  <div className="flex bg-gray-100 dark:bg-black/50 rounded-xl p-1 mb-6 border border-gray-200 dark:border-white/5 w-fit">
+                    <button onClick={() => setCjdTab("pending")} className={`px-6 py-2 rounded-lg text-sm transition-colors ${cjdTab === "pending" ? "bg-white dark:bg-white/10 font-bold shadow-sm dark:shadow-none text-blue-600 dark:text-white" : "text-gray-500 hover:text-gray-900 dark:hover:text-gray-300"}`}>
+                      Pending ({pendingCjdPosts.length})
+                    </button>
+                    <button onClick={() => setCjdTab("live")} className={`px-6 py-2 rounded-lg text-sm transition-colors ${cjdTab === "live" ? "bg-white dark:bg-white/10 font-bold shadow-sm dark:shadow-none text-green-600 dark:text-white" : "text-gray-500 hover:text-gray-900 dark:hover:text-gray-300"}`}>
+                      Live Active ({liveCjdPosts.length})
+                    </button>
+                  </div>
+
+                  {cjdTab === "pending" ? (
+                    pendingCjdPosts.length === 0 ? (
+                      <div className="text-center py-12 border border-dashed border-gray-200 dark:border-white/10 rounded-3xl bg-white dark:bg-white/5">
+                        <Ghost className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+                        <p className="text-gray-500 font-medium">No pending transmissions.</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-6">
+                        {pendingCjdPosts.map(post => {
+                          const timeRemaining = Math.max(0, new Date(post.expires_at).getTime() - new Date().getTime());
+                          const hoursLeft = Math.ceil(timeRemaining / (1000 * 60 * 60));
+
+                          return (
+                            <div key={post.id} className="bg-white dark:bg-[#121212] border border-gray-200 dark:border-white/10 rounded-3xl p-6 shadow-sm relative overflow-hidden">
+                              <div className="flex justify-between items-start mb-4">
+                                <div className="flex items-center gap-2">
+                                  {post.is_ghost ? (
+                                    <span className="text-xs font-mono font-bold text-gray-500 bg-gray-100 dark:bg-white/5 px-2 py-1 rounded-md flex items-center gap-1.5"><Ghost className="w-3.5 h-3.5" /> [GHOST_{post.id.substring(0, 4)}]</span>
+                                  ) : (
+                                    <span className="text-xs font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-white/5 px-2 py-1 rounded-md">{post.profiles?.full_name} <span className="opacity-50 px-1">•</span> {post.profiles?.branch}</span>
+                                  )}
+                                </div>
+                                <span className="text-[10px] font-mono font-bold text-gray-500 bg-gray-100 dark:bg-white/5 px-2 py-1 rounded-md flex items-center gap-1"><Clock className="w-3 h-3" /> {hoursLeft}h requested</span>
+                              </div>
+
+                              {post.image_url && (
+                                <div className="mb-4 p-2 bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-xl w-max">
+                                  <img src={post.image_url} alt="CJD Attached Snap" className="max-h-[300px] rounded-lg object-cover" />
+                                </div>
+                              )}
+
+                              <p className="text-gray-900 dark:text-gray-200 text-lg leading-relaxed mb-6 whitespace-pre-wrap">{post.content}</p>
+
+                              <div className="bg-blue-50 dark:bg-blue-500/5 border border-blue-100 dark:border-blue-500/20 rounded-2xl p-4 mb-6">
+                                <label className="text-[10px] font-bold text-blue-500 dark:text-blue-400 uppercase tracking-widest block mb-2 flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5" /> Attach Admin Context Tag (Optional)</label>
+                                <textarea
+                                  value={adminReplies[post.id] || ""}
+                                  onChange={e => setAdminReplies({ ...adminReplies, [post.id]: e.target.value })}
+                                  placeholder="Provide official confirmation or context here..."
+                                  className="w-full bg-white dark:bg-black/50 border border-blue-100 dark:border-blue-500/20 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400 dark:text-white resize-none"
+                                  rows={2}
+                                />
+                              </div>
+
+                              <div className="flex flex-col sm:flex-row gap-3 justify-end border-t border-gray-100 dark:border-white/5 pt-6">
+                                <button onClick={() => rejectCjdPost(post.id)} className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-500/10 dark:hover:bg-red-500/20 transition-colors">
+                                  <Trash2 className="w-4 h-4" /> Reject & Scrub
+                                </button>
+                                <button onClick={() => approveCjdPost(post.id, false)} className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 dark:text-white dark:bg-white/10 dark:hover:bg-white/20 transition-colors">
+                                  <Check className="w-4 h-4" /> Approve to Feed
+                                </button>
+                                <button onClick={() => approveCjdPost(post.id, true)} className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-xs font-bold text-white bg-green-500 hover:bg-green-600 shadow-[0_0_20px_rgba(34,197,94,0.3)] transition-all">
+                                  <Share2 className="w-4 h-4" /> Approve & WhatsApp Blast
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )
+                  ) : (
+                    liveCjdPosts.length === 0 ? (
+                      <div className="text-center py-12 border border-dashed border-gray-200 dark:border-white/10 rounded-3xl bg-white dark:bg-white/5">
+                        <CheckCircle2 className="w-10 h-10 text-green-300 dark:text-green-600 mx-auto mb-3" />
+                        <p className="text-gray-500 font-medium">No active broadcasts running.</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {liveCjdPosts.map(post => {
+                          const timeRemaining = Math.max(0, new Date(post.expires_at).getTime() - new Date().getTime());
+                          const hoursLeft = Math.ceil(timeRemaining / (1000 * 60 * 60));
+
+                          return (
+                            <div key={post.id} className="bg-white dark:bg-black/40 border border-green-200 dark:border-green-500/20 rounded-3xl p-5 shadow-sm relative overflow-hidden">
+                              <div className="absolute top-0 left-0 w-1 h-full bg-green-500" />
+                              <div className="flex justify-between items-start mb-3 pl-2">
+                                <span className="text-xs font-bold text-gray-700 dark:text-gray-300">
+                                  {post.is_ghost ? `[GHOST_${post.id.substring(0, 4)}]` : post.profiles?.full_name?.split(" ")[0]}
+                                </span>
+                                <span className="text-[10px] font-mono text-green-600 dark:text-green-400 font-bold">{hoursLeft}h left</span>
+                              </div>
+
+                              {post.image_url && (
+                                <div className="mb-3 pl-2">
+                                  <img src={post.image_url} alt="CJD Attached Snap" className="max-h-[200px] rounded-lg object-cover border border-gray-100 dark:border-white/10" />
+                                </div>
+                              )}
+
+                              <p className="text-gray-600 dark:text-gray-400 text-sm mb-4 pl-2 line-clamp-3">{post.content}</p>
+                              <div className="flex items-center justify-between pl-2 pt-4 border-t border-gray-100 dark:border-white/5">
+                                <button onClick={() => triggerWhatsAppBlast(post.id)} className="text-[10px] flex items-center gap-1.5 font-bold text-green-600 hover:text-green-700 transition-colors uppercase tracking-wider">
+                                  <Share2 className="w-3.5 h-3.5" /> Re-Broadcast
+                                </button>
+                                <button onClick={() => rejectCjdPost(post.id)} className="text-[10px] flex items-center gap-1.5 font-bold text-red-500 hover:text-red-600 transition-colors uppercase tracking-wider">
+                                  <Trash2 className="w-3.5 h-3.5" /> Revoke
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )
+                  )}
+                </div>
+              </motion.div>
+            )}
+
           </AnimatePresence>
         </main>
       </div>
