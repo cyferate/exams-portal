@@ -2,12 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
     Terminal, ShieldCheck, KeyRound, Sparkles, BookOpen,
-    Code2, ArrowLeft, ChevronRight, Lock, CheckCircle2,
-    Layers, ExternalLink, HelpCircle, Flame, ArrowUpRight,
-    Play, FileText
+    Code2, ArrowLeft, ChevronRight, CheckCircle2,
+    Layers, Flame, Play, FileText, CodeSquare
 } from "lucide-react";
 import Link from "next/link";
 import toast from "react-hot-toast";
@@ -21,7 +20,6 @@ export default function GarudaPortal() {
     const [inviteCode, setInviteCode] = useState("");
     const [isVerifying, setIsVerifying] = useState(false);
 
-    // Arena Data States
     const [languages, setLanguages] = useState<any[]>([]);
     const [selectedLanguage, setSelectedLanguage] = useState<any | null>(null);
     const [questions, setQuestions] = useState<any[]>([]);
@@ -32,6 +30,17 @@ export default function GarudaPortal() {
     useEffect(() => {
         fetchSessionAndStatus();
     }, []);
+
+    // --- STATE RETENTION LOGIC ---
+    useEffect(() => {
+        if (hasAccess && languages.length > 0 && !selectedLanguage) {
+            const savedLangSlug = sessionStorage.getItem("garuda_last_lang");
+            if (savedLangSlug) {
+                const langObj = languages.find(l => l.slug === savedLangSlug);
+                if (langObj) handleSelectLanguage(langObj);
+            }
+        }
+    }, [hasAccess, languages]);
 
     async function fetchSessionAndStatus() {
         const { data: { session } } = await supabase.auth.getSession();
@@ -44,7 +53,7 @@ export default function GarudaPortal() {
             .single();
 
         setProfile(profileData);
-        const accessGranted = profileData?.has_garuda_access || profileData?.is_admin || false;
+        const accessGranted = profileData?.has_nexus_access || profileData?.has_garuda_access || profileData?.is_admin || false;
         setHasAccess(accessGranted);
 
         if (accessGranted) {
@@ -59,10 +68,7 @@ export default function GarudaPortal() {
     }
 
     async function loadUserSubmissions(userId: string) {
-        const { data } = await supabase
-            .from("garuda_submissions")
-            .select("question_id, status")
-            .eq("user_id", userId);
+        const { data } = await supabase.from("garuda_submissions").select("question_id, status").eq("user_id", userId);
         if (data) setUserSubmissions(data);
     }
 
@@ -72,27 +78,21 @@ export default function GarudaPortal() {
         setIsVerifying(true);
         const cleanCode = inviteCode.trim().toUpperCase();
 
-        const { data: inviteData, error: inviteErr } = await supabase
-            .from("garuda_invites")
-            .select("*")
-            .eq("code", cleanCode)
-            .eq("is_used", false)
-            .maybeSingle();
+        const { data: inviteData, error: inviteErr } = await supabase.from("garuda_invites").select("*").eq("code", cleanCode).eq("is_used", false).maybeSingle();
 
         if (inviteErr || !inviteData) {
             setIsVerifying(false);
             return toast.error("Invalid or expired clearance key.");
         }
 
-        // Claim the key and upgrade the profile clearance
         await supabase.from("garuda_invites").update({ is_used: true, used_by: profile.id }).eq("code", cleanCode);
-        const { error: profErr } = await supabase.from("profiles").update({ has_garuda_access: true }).eq("id", profile.id);
+        const { error: profErr } = await supabase.from("profiles").update({ has_nexus_access: true }).eq("id", profile.id);
 
         setIsVerifying(false);
         if (profErr) {
             toast.error("Failed to upgrade clearance: " + profErr.message);
         } else {
-            toast.success("Clearance Granted. Welcome to GARUDA<sh>", { icon: "🦅" });
+            toast.success("Clearance Granted.", { icon: "🦅" });
             setHasAccess(true);
             loadLanguages();
             loadUserSubmissions(profile.id);
@@ -100,22 +100,23 @@ export default function GarudaPortal() {
     }
 
     async function handleSelectLanguage(lang: any) {
+        sessionStorage.setItem("garuda_last_lang", lang.slug); // Save position
         setSelectedLanguage(lang);
         setLoadingQuestions(true);
         setActiveTrack("All");
 
-        const { data, error } = await supabase
-            .from("garuda_questions")
-            .select("*")
-            .eq("language_id", lang.id)
-            .order("created_at", { ascending: true });
+        const { data, error } = await supabase.from("garuda_questions").select("*").eq("language_id", lang.id).order("created_at", { ascending: true });
 
         if (error) toast.error("Failed to load modules: " + error.message);
         if (data) setQuestions(data);
         setLoadingQuestions(false);
     }
 
-    // --- SMART FILTERING ---
+    const clearLanguageSelection = () => {
+        sessionStorage.removeItem("garuda_last_lang"); // Clear position
+        setSelectedLanguage(null);
+    }
+
     const filteredNodes = questions.filter(q => {
         if (activeTrack === "All") return true;
         return q.difficulty === activeTrack;
@@ -128,38 +129,34 @@ export default function GarudaPortal() {
         <ProtectedRoute>
             <div className="min-h-screen bg-[#07090e] text-white font-sans relative overflow-x-hidden selection:bg-blue-500 selection:text-white pb-24">
 
-                {/* TOP COMMAND BAR */}
                 <nav className="border-b border-white/10 bg-[#07090e]/80 backdrop-blur-xl sticky top-0 z-40">
                     <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
                         <div className="flex items-center gap-4">
                             <Link href="/dashboard" className="flex items-center gap-2 text-xs font-bold text-gray-400 hover:text-white transition-colors">
-                                <ArrowLeft className="w-4 h-4" /> THE VAULT
+                                <ArrowLeft className="w-4 h-4" /> THE NEXUS
                             </Link>
                             <div className="h-4 w-px bg-white/10" />
-                            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setSelectedLanguage(null)}>
+                            <div className="flex items-center gap-2 cursor-pointer group" onClick={clearLanguageSelection}>
                                 <Terminal className="w-5 h-5 text-blue-400" />
-                                <span className="font-mono font-black text-lg tracking-wider">
-                                    GARUDA<span className="text-blue-500 font-normal">&lt;sh&gt;</span>
+                                <span className="font-mono font-black text-lg tracking-wider group-hover:text-blue-300 transition-colors">
+                                    DEV's <span className="text-blue-500 font-normal">practice and tests</span>
                                 </span>
                             </div>
                         </div>
 
                         <div className="flex items-center gap-4">
-                            {/* GAMIFICATION XP BADGE */}
                             <div className="hidden sm:flex items-center gap-1.5 text-blue-400 bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-full text-xs font-bold font-mono shadow-sm shadow-blue-500/10">
                                 <Flame className="w-3.5 h-3.5" /> {profile?.xp_score || 0} XP
                             </div>
                             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 text-xs font-mono font-bold">
                                 <ShieldCheck className="w-3.5 h-3.5" /> SYSTEM LIVE
                             </div>
-                            <span className="text-xs font-mono text-gray-400 font-bold">{profile?.full_name?.split(" ")[0]}</span>
                         </div>
                     </div>
                 </nav>
 
                 <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-10">
 
-                    {/* ---------------- GATEKEEPER MODAL ---------------- */}
                     {hasAccess === false && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
                             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md bg-[#0e131f] border border-blue-500/30 rounded-3xl p-8 shadow-[0_0_50px_rgba(59,130,246,0.15)] text-center relative overflow-hidden">
@@ -168,10 +165,10 @@ export default function GarudaPortal() {
                                 </div>
                                 <h2 className="text-2xl font-black mb-2 tracking-tight">Restricted Clearance</h2>
                                 <p className="text-gray-400 text-xs leading-relaxed mb-6">
-                                    <span className="font-mono text-blue-400">GARUDA&lt;sh&gt;</span> is currently in restricted access. Enter your referral clearance key to unlock the coding arena.
+                                    <span className="font-mono text-blue-400">DEV's practice and tests</span> requires a valid Nexus Pass code.
                                 </p>
                                 <form onSubmit={handleClaimInvite} className="space-y-4">
-                                    <input type="text" placeholder="ENTER CLEARANCE KEY" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3.5 text-center font-mono text-sm tracking-widest uppercase focus:outline-none focus:border-blue-500 transition-colors text-white placeholder:text-gray-600" />
+                                    <input type="text" placeholder="ENTER NEXUS PASS" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3.5 text-center font-mono text-sm tracking-widest uppercase focus:outline-none focus:border-blue-500 transition-colors text-white placeholder:text-gray-600" />
                                     <button type="submit" disabled={isVerifying} className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25">
                                         {isVerifying ? "Verifying Matrix..." : "Authenticate Clearance"}
                                     </button>
@@ -180,15 +177,32 @@ export default function GarudaPortal() {
                         </div>
                     )}
 
-                    {/* ---------------- MAIN ARENA VIEW ---------------- */}
                     {hasAccess && !selectedLanguage && (
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                            <div className="text-center max-w-2xl mx-auto mb-16">
+
+                            <div className="max-w-6xl mx-auto mb-16">
+                                <Link href="/garuda/sandbox" className="group relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-blue-900/40 to-[#0e131f] border border-blue-500/30 p-8 shadow-[0_0_40px_rgba(59,130,246,0.1)] hover:shadow-[0_0_60px_rgba(59,130,246,0.2)] transition-all duration-500 flex flex-col md:flex-row items-center justify-between gap-8">
+                                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-10 mix-blend-overlay pointer-events-none" />
+                                    <div>
+                                        <div className="flex items-center gap-3 mb-3">
+                                            <div className="p-3 bg-blue-500/20 rounded-xl"><CodeSquare className="w-6 h-6 text-blue-400" /></div>
+                                            <h2 className="text-3xl font-black">Global Sandbox Editor</h2>
+                                        </div>
+                                        <p className="text-gray-400 text-sm max-w-xl leading-relaxed">Need a place to test your own logic? Open the multi-language freeform editor. Write, compile, test, and save your scripts locally or directly to your profile database.</p>
+                                    </div>
+                                    <div className="shrink-0">
+                                        <div className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl flex items-center gap-2 transition-colors">
+                                            Open Playground <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                                        </div>
+                                    </div>
+                                </Link>
+                            </div>
+
+                            <div className="text-center max-w-2xl mx-auto mb-12">
                                 <span className="px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-mono font-bold inline-flex items-center gap-1.5 mb-4">
-                                    <Sparkles className="w-3.5 h-3.5" /> ACTIVE ENVIRONMENTS
+                                    <Sparkles className="w-3.5 h-3.5" /> CURATED TRACKS
                                 </span>
                                 <h1 className="text-4xl sm:text-5xl font-black tracking-tight mb-4">Select Your Weapon</h1>
-                                <p className="text-gray-400 text-sm leading-relaxed">Select a runtime engine. Master the syntax, solve execution algorithms, and dominate the Hall of Fame.</p>
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
@@ -206,7 +220,7 @@ export default function GarudaPortal() {
                                             <p className="text-xs text-gray-400">Integrated modules & dynamic test cases.</p>
                                         </div>
                                         <div className="flex items-center justify-between pt-4 border-t border-white/5 text-xs font-bold text-gray-400 group-hover:text-white transition-colors">
-                                            <span>Initialize Arena</span><ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                                            <span>Initialize Track</span><ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                                         </div>
                                     </motion.div>
                                 ))}
@@ -214,22 +228,19 @@ export default function GarudaPortal() {
                         </motion.div>
                     )}
 
-                    {/* ---------------- DRILLDOWN WORKSPACE ---------------- */}
                     {hasAccess && selectedLanguage && (
                         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
 
-                            {/* Top Navigation */}
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10 pb-6 border-b border-white/10">
                                 <div className="flex items-center gap-4">
-                                    <button onClick={() => setSelectedLanguage(null)} className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-white transition-colors">
+                                    <button onClick={clearLanguageSelection} className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-white transition-colors">
                                         <ArrowLeft className="w-4 h-4" />
                                     </button>
                                     <div>
                                         <h2 className="text-2xl font-black flex items-center gap-3">
                                             {selectedLanguage.icon_url ? <img src={selectedLanguage.icon_url} className="w-6 h-6" /> : <Code2 className="w-6 h-6 text-blue-500" />}
-                                            {selectedLanguage.name} Server
+                                            {selectedLanguage.name} Tests
                                         </h2>
-                                        <p className="text-xs text-gray-400 font-mono mt-1">Runtime ID: /{selectedLanguage.slug}</p>
                                     </div>
                                 </div>
 
@@ -248,16 +259,15 @@ export default function GarudaPortal() {
                                 <div className="py-20 text-center border-2 border-dashed border-white/10 rounded-3xl max-w-2xl mx-auto p-8">
                                     <Layers className="w-12 h-12 text-gray-600 mx-auto mb-4" />
                                     <h3 className="text-lg font-bold mb-1">Sector Empty</h3>
-                                    <p className="text-gray-400 text-xs max-w-sm mx-auto mb-6">No nodes found in the <span className="text-blue-400">{activeTrack}</span> track for this language. Admins are actively provisioning.</p>
+                                    <p className="text-gray-400 text-xs max-w-sm mx-auto mb-6">No nodes found in the <span className="text-blue-400">{activeTrack}</span> track for this language.</p>
                                 </div>
                             ) : (
                                 <div className="space-y-12 max-w-5xl mx-auto">
 
-                                    {/* PREPARATION VAULT */}
                                     {materials.length > 0 && (
                                         <section>
                                             <h3 className="text-lg font-black mb-4 flex items-center gap-2 text-gray-300">
-                                                <BookOpen className="w-5 h-5 text-purple-400" /> Preparation Vault
+                                                <BookOpen className="w-5 h-5 text-purple-400" /> Reference Vault
                                             </h3>
                                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                                 {materials.map((m) => {
@@ -276,15 +286,13 @@ export default function GarudaPortal() {
                                         </section>
                                     )}
 
-                                    {/* EXECUTION ARENA */}
                                     {challenges.length > 0 && (
                                         <section>
                                             <h3 className="text-lg font-black mb-4 flex items-center gap-2 text-gray-300">
-                                                <Terminal className="w-5 h-5 text-blue-400" /> Execution Arena
+                                                <Terminal className="w-5 h-5 text-blue-400" /> Execution Tests
                                             </h3>
                                             <div className="space-y-3">
                                                 {challenges.map((q, idx) => {
-                                                    // This checks the database to see if the user passed this question!
                                                     const isPassed = userSubmissions.some(s => s.question_id === q.id && s.status === 'passed');
 
                                                     return (
@@ -309,7 +317,6 @@ export default function GarudaPortal() {
                                                                 <span className="text-xs font-mono font-bold text-blue-400 bg-blue-500/10 px-3 py-1.5 rounded-lg border border-blue-500/20 shrink-0">
                                                                     +{q.xp_reward} XP
                                                                 </span>
-                                                                {/* Dynamic execute button styles based on completion */}
                                                                 <Link href={`/garuda/${selectedLanguage.slug}/${q.id}`} className={`px-5 py-2 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 shrink-0 ${isPassed ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' : 'bg-white text-black hover:bg-blue-500 hover:text-white'}`}>
                                                                     {isPassed ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 fill-current" />}
                                                                     {isPassed ? "Review" : "Execute"}
